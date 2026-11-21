@@ -93,13 +93,17 @@ honours "start at 19:42" for those, so you can see the frame you want.
 ![Selecting videos and moving them into a folder](docs/screenshot-move.png)
 
 The bar under the toolbar holds **All videos**, **Unfiled** and your folders, each with a
-live count. **New folder** creates one; double-click a folder chip to rename it. Deleting a
-folder (from the move dialog) only unfiles its videos — nothing is ever deleted.
+live count. **New folder** creates one; double-click a folder chip to rename it. Opening a
+folder reveals its action bar: **Empty folder** (moves every video inside out to *Unfiled*,
+keeping the folder), **Rename**, and **Delete folder** — deleting removes the folder *and
+the videos inside it*, and the confirmation states exactly how many. Uploaded files on
+disk are never touched.
 
 Two ways to move videos:
 
-- **Drag & drop** — drag a card onto a folder chip (or onto *Unfiled*). In selection mode,
-  dragging a selected card moves the whole selection.
+- **Drag & drop** — drag a card onto a folder chip (or onto *Unfiled*). While you drag,
+  every folder chip outlines itself as a target and the one under your cursor highlights.
+  In selection mode, dragging a selected card moves the whole selection.
 - **Select and move** — the check-square button in the toolbar enters selection mode; click
   cards (or their checkboxes), then **Move to folder…**. The dialog also creates, renames
   and deletes folders. `Esc` or **Done** leaves selection mode.
@@ -141,6 +145,7 @@ server.js                static server + JSON store + metadata reader + media pr
 index.html               the gallery UI
 player.html              the in-iframe player used for video files
 app.js / styles.css      gallery logic and styling
+i18n.js                  11 language dictionaries + translation runtime
 test/server.test.js      zero-dependency smoke suite (npm test)
 scripts/screenshot.mjs   dev tool: refresh the README screenshots
 docs/                    screenshots and API reference
@@ -165,6 +170,20 @@ CI runs the suite on Linux, macOS and Windows against Node 18, 20 and 22.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules (zero dependencies,
 plain JSON, loopback by default), [docs/api.md](docs/api.md) for the HTTP API
 and the video record schema, and [CHANGELOG.md](CHANGELOG.md) for release history.
+
+## Languages
+
+The interface ships in 11 languages: English (default), Arabic, Russian, French, German,
+Spanish, Simplified Chinese, Japanese, Korean, Hindi and Turkish. Pick yours from the
+language selector in the toolbar; the choice is remembered, and a first visit follows your
+browser's language. Arabic switches the entire layout to right-to-left.
+
+![The gallery in Arabic, right-to-left](docs/screenshot-rtl.png)
+
+Translations live in `i18n.js` — one dictionary per language, with `{placeholder}`
+variables. To add a language: copy the `en` block, translate it, and register it in
+`I18N_META` plus the toolbar selector. Server log lines and provider brand names stay
+untranslated by design.
 
 ## Troubleshooting
 

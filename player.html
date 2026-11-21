@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Reelkeep player</title>
+    <title data-i18n="player.title">Reelkeep player</title>
     <style>
       html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
       video { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -16,6 +16,7 @@
   <body>
     <video id="v" controls playsinline preload="metadata"></video>
 
+    <script src="i18n.js"></script>
     <script>
       const q = new URLSearchParams(location.search);
       const src = q.get('src');
@@ -25,7 +26,7 @@
       const post = (msg) => parent.postMessage({ from: 'vg-player', ...msg }, '*');
 
       if (!src) {
-        document.body.innerHTML = '<div class="err">No video source given.</div>';
+        document.body.innerHTML = `<div class="err">${t('player.nosrc')}</div>`;
       } else {
         v.src = src;
         if (auto) v.play().catch(() => {});
@@ -50,7 +51,7 @@
           post({ type: 'error' });
           const box = document.createElement('div');
           box.className = 'err';
-          box.textContent = 'This browser cannot play that file format directly. Use the original page instead.';
+          box.textContent = t('player.format');
           document.body.append(box);
         });
         document.addEventListener('keydown', (e) => {

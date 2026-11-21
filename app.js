@@ -62,10 +62,10 @@ const relDate = (iso) => {
   const d = new Date(iso);
   if (isNaN(d)) return '';
   const days = (Date.now() - d) / 86400000;
-  if (days < 1) return 'today';
-  if (days < 2) return 'yesterday';
-  if (days < 30) return `${Math.floor(days)}d ago`;
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: days > 365 ? 'numeric' : undefined });
+  if (days < 1) return t('date.today');
+  if (days < 2) return t('date.yesterday');
+  if (days < 30) return t('date.days', { n: Math.floor(days) });
+  return d.toLocaleDateString(i18nTag(), { day: 'numeric', month: 'short', year: days > 365 ? 'numeric' : undefined });
 };
 
 function debounce(fn, ms = 450) {
@@ -160,11 +160,11 @@ const PROVIDERS = {
     thumb: (v) => `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
     frames: (v) =>
       [
-        ['default', 'hqdefault'],
+        [t('frames.default'), 'hqdefault'],
         ['25%', 'hq1'],
         ['50%', 'hq2'],
         ['75%', 'hq3'],
-        ['max res', 'maxresdefault'],
+        [t('frames.maxres'), 'maxresdefault'],
       ].map(([label, code]) => ({ label, url: `https://i.ytimg.com/vi/${v.videoId}/${code}.jpg` })),
   },
   vimeo: {
@@ -303,7 +303,11 @@ function detect(rawUrl) {
   return { provider: 'page', kind: 'page' };
 }
 
-const providerLabel = (v) => PROVIDERS[v.provider]?.label || hostOf(v.url) || v.provider || 'video';
+const providerLabel = (v) =>
+  PROVIDERS[v.provider]?.label ||
+  hostOf(v.url) ||
+  (v.provider === 'file' ? t('prov.file') : v.provider === 'page' ? t('prov.page') : v.provider === 'custom' ? t('prov.custom') : v.provider) ||
+  t('prov.video');
 
 /** Pages often title themselves "- YouTube" or "Foo | SomeSite"; drop those suffixes
     so an auto-filled title is the video, not the site chrome. */
@@ -427,6 +431,16 @@ function applyGroup(on) {
 
 $('#groupBtn').addEventListener('click', () => applyGroup(!state.group));
 
+$('#langSel').addEventListener('change', (e) => setLocale(e.target.value));
+document.addEventListener('reelkeep:locale', () => {
+  $('#langSel').value = i18nCurrent();
+  render();
+  setBackend(state.backend);
+  if (editDialog.open && editing) openEdit(editing.id);
+  if (lb.open && state.current) paintLbMeta(state.current);
+  if (moveDialog.open) paintMoveList();
+});
+
 const LS_KEY = 'video-gallery.v1';
 const localLib = {
   read: () => {
@@ -440,7 +454,7 @@ const localLib = {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(db));
     } catch {
-      toast('Browser storage is full — thumbnails may be too large for offline mode.', 'err', 6000);
+      toast(t('to.storagefull'), 'err', 6000);
     }
   },
 };
@@ -493,9 +507,7 @@ const store = {
     if (state.backend !== 'remote') {
       const db = localLib.read();
       db.folders = (db.folders || []).filter((f) => f.id !== id);
-      (db.videos || []).forEach((v) => {
-        if (v.folderId === id) v.folderId = '';
-      });
+      db.videos = (db.videos || []).filter((v) => v.folderId !== id);
       localLib.write(db);
       return;
     }
@@ -583,14 +595,14 @@ const store = {
     });
     if (!res.ok) {
       const why = await res.json().catch(() => ({}));
-      toast('Could not copy that thumbnail (' + (why.error || res.status) + ') — linking to it instead.', 'err', 5000);
+      toast(t('to.copyfail', { err: why.error || res.status }), 'err', 5000);
       return url;
     }
     return (await res.json()).thumbnail;
   },
   upload(file, onProgress) {
     return new Promise((resolve, reject) => {
-      if (state.backend !== 'remote') return reject(new Error('Start `node server.js` to upload files'));
+      if (state.backend !== 'remote') return reject(new Error(t('err.uploadlocal')));
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/videos/upload');
       xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
@@ -600,10 +612,10 @@ const store = {
           const body = JSON.parse(xhr.responseText);
           xhr.status < 300 ? resolve(body) : reject(new Error(body.error || xhr.statusText));
         } catch {
-          reject(new Error('upload failed'));
+          reject(new Error(t('to.uploadfail')));
         }
       };
-      xhr.onerror = () => reject(new Error('upload failed — connection lost'));
+      xhr.onerror = () => reject(new Error(t('to.uploadlost')));
       xhr.send(file);
     });
   },
@@ -618,7 +630,7 @@ async function patch(id, data, rerender = true) {
     if (rerender) render();
     return v;
   } catch (err) {
-    toast('Could not save: ' + err.message, 'err');
+    toast(t('to.savefail', { err: err.message }), 'err');
   }
 }
 
@@ -663,19 +675,19 @@ function cardHtml(v, tokens) {
   const label = esc(providerLabel(v));
   const favHost = hostOf(v.url);
   const favSrc = assetUrl(v.favicon) || (favHost ? `https://${favHost}/favicon.ico` : '');
-  const fav = favSrc ? `<img src="${esc(favSrc)}" alt="" onerror="this.remove()">` : '';
+  const fav = favSrc ? `<img src="${esc(favSrc)}" alt="" draggable="false" onerror="this.remove()">` : '';
   const stamp = v.duration ? fmtTime(v.duration) : v.startAt ? '▶ ' + fmtTime(v.startAt) : '';
   const tags = (v.tags || []).slice(0, 3).map((t) => `<span class="t">#${esc(t)}</span>`).join('');
   const folder = state.folders.find((f) => f.id === v.folderId);
   const fold = folder && state.folder === 'all' ? `<span class="fold"><svg><use href="#i-folder" /></svg>${esc(folder.name)}</span>` : '';
   const sel = state.selecting
-    ? `<label class="card-select"><input type="checkbox" data-act="select" ${state.selected.has(v.id) ? 'checked' : ''} aria-label="Select ${esc(v.title)}" /></label>`
+    ? `<label class="card-select"><input type="checkbox" data-act="select" ${state.selected.has(v.id) ? 'checked' : ''} aria-label="${esc(t('card.select', { title: v.title }))}" /></label>`
     : '';
   return `<article class="card${state.selected.has(v.id) ? ' selected' : ''}" data-id="${v.id}" tabindex="0" draggable="true" aria-label="${esc(v.title)}">
     <div class="thumb">
       ${sel}
       <div class="ph"><svg><use href="#i-film" /></svg></div>
-      ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+      ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" draggable="false" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
       <span class="badge">${fav}${label}</span>
       ${stamp ? `<span class="stamp">${esc(stamp)}</span>` : ''}
       <div class="thumb-play"><span><svg><use href="#i-play" /></svg></span></div>
@@ -685,9 +697,9 @@ function cardHtml(v, tokens) {
       </div>
     </div>
     <div class="card-body">
-      <h3 class="card-title" data-act="rename" title="Double-click to rename">${highlight(v.title || 'Untitled', tokens)}</h3>
+      <h3 class="card-title" data-act="rename" title="${esc(t('lb.rename'))}">${highlight(v.title || t('card.untitled'), tokens)}</h3>
       ${v.notes ? `<p class="card-notes">${esc(v.notes)}</p>` : ''}
-      <div class="card-sub">${fold}${tags}<span class="host">${esc(hostOf(v.url) || 'local file')}</span><span>· ${esc(relDate(v.addedAt))}</span>${v.startAt ? `<span>· starts ${esc(fmtTime(v.startAt))}</span>` : ''}</div>
+      <div class="card-sub">${fold}${tags}<span class="host">${esc(hostOf(v.url) || t('card.local'))}</span><span>· ${esc(relDate(v.addedAt))}</span>${v.startAt ? `<span>· ${esc(t('card.starts', { t: fmtTime(v.startAt) }))}</span>` : ''}</div>
     </div>
   </article>`;
 }
@@ -708,7 +720,7 @@ function renderProviders() {
   const seen = new Map();
   state.videos.forEach((v) => seen.set(v.provider, providerLabel(v)));
   sel.innerHTML =
-    `<option value="">All sources</option>` +
+    `<option value="">${esc(t('source.all'))}</option>` +
     [...seen.entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([k, label]) => `<option value="${esc(k)}"${k === keep ? ' selected' : ''}>${esc(label)}</option>`)
@@ -743,19 +755,22 @@ function render() {
   $('#grid').classList.toggle('selecting', state.selecting);
   // an empty flex:1 grid would eat the free space and push #empty to the footer
   $('#grid').hidden = list.length === 0;
-  $('#count').textContent = `${state.videos.length} video${state.videos.length === 1 ? '' : 's'}` + (tokens.length || state.tags.size || state.provider ? ` · ${list.length} shown` : '');
+  $('#count').textContent =
+    t(state.videos.length === 1 ? 'count.one' : 'count.other', { n: state.videos.length }) +
+    (tokens.length || state.tags.size || state.provider || state.folder !== 'all' ? ' ' + t('count.shown', { n: list.length }) : '');
   const empty = $('#empty');
   empty.hidden = list.length > 0;
   if (!state.videos.length) {
-    $('#emptyTitle').textContent = 'Your gallery is empty';
-    $('#emptyText').textContent = 'Add any video link — YouTube, Vimeo, TikTok, Streamable, a direct .mp4 — or drop a video file here.';
+    $('#emptyTitle').textContent = t('empty.title');
+    $('#emptyText').textContent = t('empty.text');
   } else {
-    $('#emptyTitle').textContent = 'No matches';
-    $('#emptyText').textContent = 'Nothing here fits your search and filters.';
+    $('#emptyTitle').textContent = t('nomatch.title');
+    $('#emptyText').textContent = t('nomatch.text');
   }
   renderTagbar();
   renderProviders();
   renderFolderbar();
+  renderFolderActions();
   renderSelectbar();
 }
 
@@ -769,18 +784,18 @@ function renderFolderbar() {
   const chip = (key, label, n, extra = '') =>
     `<button class="chip${state.folder === key ? ' on' : ''}" data-folder="${esc(key)}" ${extra}>${label}<small>${n}</small></button>`;
   $('#folderbar').innerHTML =
-    chip('all', 'All videos', state.videos.length) +
-    chip('unfiled', 'Unfiled', unfiled) +
+    chip('all', t('folder.all'), state.videos.length) +
+    chip('unfiled', t('folder.unfiled'), unfiled) +
     state.folders
-      .map((f) => chip(f.id, `<svg class="fi"><use href="#i-folder" /></svg>${esc(f.name)}`, counts.get(f.id) || 0, 'title="Double-click to rename · drop cards here to move"'))
+      .map((f) => chip(f.id, `<svg class="fi"><use href="#i-folder" /></svg>${esc(f.name)}`, counts.get(f.id) || 0, `title="${esc(t('folder.chip.title'))}"`))
       .join('') +
-    `<button class="chip newfolder" data-newfolder="1" title="Create a folder"><svg class="fi"><use href="#i-plus" /></svg>New folder</button>`;
+    `<button class="chip newfolder" data-newfolder="1" title="${esc(t('folder.new.title'))}"><svg class="fi"><use href="#i-plus" /></svg>${esc(t('folder.new'))}</button>`;
 }
 
 function renderSelectbar() {
   const bar = $('#selectbar');
   bar.hidden = !state.selecting;
-  $('#selCount').textContent = `${state.selected.size} selected`;
+  $('#selCount').textContent = t('sel.count', { n: state.selected.size });
   $('#selMove').disabled = !state.selected.size;
   $('#selectBtn').classList.toggle('on', state.selecting);
   $('#selectBtn').setAttribute('aria-pressed', String(state.selecting));
@@ -807,25 +822,26 @@ function openPlayer(id) {
   state.current = v;
   state.lastTime = 0;
   $('#lbFrame').src = frameSrc(v);
-  $('#lbTitle').textContent = v.title || 'Untitled';
-  $('#lbHint').hidden = v.kind !== 'page';
-  if (v.kind === 'page') {
-    $('#lbHint').textContent =
-      'If this stays blank, the site refuses to be embedded. Use the open-in-new-tab button above, or paste its embed code in Edit → Advanced.';
-  }
-  const bits = [];
-  if (v.url) bits.push(`<span>${esc(hostOf(v.url))}</span>`);
-  if (v.duration) bits.push(`<span>${fmtTime(v.duration)}</span>`);
-  if (v.startAt) bits.push(`<span>starts ${esc(fmtTime(v.startAt))}</span>`);
-  bits.push(...(v.tags || []).map((t) => `<span class="t">#${esc(t)}</span>`));
-  if (v.notes) bits.push(`<span title="${esc(v.notes)}">has notes</span>`);
-  $('#lbMeta').innerHTML = bits.join('');
+  $('#lbTitle').textContent = v.title || t('card.untitled');
+  paintLbMeta(v);
   $('#lbRemember').checked = false;
   $('#lbRemember').closest('.switch').hidden = v.kind !== 'file';
   $$('.lb-nav').forEach((b) => (b.style.visibility = ''));
   positionNav();
   lb.showModal();
   patch(v.id, { lastOpenedAt: new Date().toISOString() }, false);
+}
+
+function paintLbMeta(v) {
+  $('#lbHint').hidden = v.kind !== 'page';
+  if (v.kind === 'page') $('#lbHint').textContent = t('lb.hint');
+  const bits = [];
+  if (v.url) bits.push(`<span>${esc(hostOf(v.url))}</span>`);
+  if (v.duration) bits.push(`<span>${fmtTime(v.duration)}</span>`);
+  if (v.startAt) bits.push(`<span>${esc(t('lb.starts', { t: fmtTime(v.startAt) }))}</span>`);
+  bits.push(...(v.tags || []).map((tag) => `<span class="t">#${esc(tag)}</span>`));
+  if (v.notes) bits.push(`<span title="${esc(v.notes)}">${esc(t('lb.notes'))}</span>`);
+  $('#lbMeta').innerHTML = bits.join('');
 }
 
 function positionNav() {
@@ -886,7 +902,7 @@ $$('[data-lb]').forEach((btn) =>
     if (act === 'full') {
       const stage = $('#lbStage');
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await stage.requestFullscreen?.().catch(() => toast('Fullscreen was blocked by the browser', 'err'));
+      else await stage.requestFullscreen?.().catch(() => toast(t('to.fullscreen'), 'err'));
       btn.classList.toggle('on', !!document.fullscreenElement);
     }
   }),
@@ -906,8 +922,8 @@ lb.addEventListener('dblclick', (e) => {
     const back = Object.assign(document.createElement('h2'), {
       id: 'lbTitle',
       className: 'lb-title',
-      textContent: state.current?.title || 'Untitled',
-      title: 'Double-click to rename',
+      textContent: state.current?.title || t('card.untitled'),
+      title: t('lb.rename'),
     });
     if (input.isConnected) input.replaceWith(back);
   };
@@ -962,7 +978,7 @@ function newDraft() {
   $('#pvStart').value = '';
   $('#pvNotes').value = '';
   $('#pvUseOg').checked = true;
-  $('#dropLabel').textContent = 'Choose a video file';
+  $('#dropLabel').textContent = t('upload.choose');
   $('#upProgress').hidden = true;
   $('#addPreview').hidden = true;
   setStatus('');
@@ -996,9 +1012,9 @@ const enrich = debounce(async (raw) => {
   const found = detect(u.href);
   Object.assign(draft, { url: u.href, provider: found.provider, kind: found.kind, videoId: found.videoId || null });
   paintPreview();
-  if (found.kind === 'invalid') return setStatus('That does not look like a link.', 'err');
-  if (state.backend !== 'remote') return setStatus('Start `node server.js` to auto-fetch titles and page images.', 'err');
-  setStatus(`Reading ${hostOf(u.href)} …`, 'busy');
+  if (found.kind === 'invalid') return setStatus(t('st.invalid'), 'err');
+  if (state.backend !== 'remote') return setStatus(t('st.localenrich'), 'err');
+  setStatus(t('st.reading', { host: hostOf(u.href) }), 'busy');
   try {
     const meta = await (await fetch('/api/enrich?url=' + encodeURIComponent(u.href))).json();
     if (draft.url !== u.href) return; // superseded by a newer paste
@@ -1015,15 +1031,15 @@ const enrich = debounce(async (raw) => {
       draft.kind = 'file';
       draft.provider = 'file';
       draft.fileUrl = meta.mediaUrl;
-      setStatus(`Found a direct video file on that page — it will play in the frame and allow frame thumbnails.`, 'ok');
+      setStatus(t('st.direct'), 'ok');
     } else if (found.kind === 'page') {
-      setStatus('No known player for this site — it will be framed as-is. If it blocks embedding, paste its embed code instead.', '');
+      setStatus(t('st.page'), '');
     } else {
-      setStatus(`${providerLabel(draft)} player detected.`, 'ok');
+      setStatus(t('st.detected', { provider: providerLabel(draft) }), 'ok');
     }
     paintPreview();
   } catch (err) {
-    setStatus('Could not read that page: ' + err.message, 'err');
+    setStatus(t('st.enrichfail', { err: err.message }), 'err');
   }
 }, 550);
 
@@ -1052,8 +1068,8 @@ $('#addEmbed').addEventListener('input', (e) => {
   draft.provider = PROVIDERS.youtube.test(hostOf(src || '')) ? 'youtube' : 'custom';
   if (src) {
     draft.url = draft.url || src;
-    setStatus('Embed URL extracted: ' + src, 'ok');
-  } else setStatus('Paste the <iframe …> snippet, or a player URL.', '');
+    setStatus(t('st.embedok', { url: src }), 'ok');
+  } else setStatus(t('st.embedhelp'), '');
   paintPreview();
   updateSave();
 });
@@ -1068,7 +1084,7 @@ $('#addFile').addEventListener('change', (e) => {
     draft.url = '';
     draft.kind = 'file';
     draft.provider = 'file';
-    setStatus('Uploaded videos live in ./videos and support frame-accurate thumbnails.', 'ok');
+    setStatus(t('st.uploadok'), 'ok');
   }
   paintPreview();
   updateSave();
@@ -1080,7 +1096,7 @@ $$('.tab').forEach((tab) =>
     $$('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     $$('.panel[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
     if (tab.dataset.tab === 'upload' && state.backend !== 'remote') {
-      setStatus('File upload needs the local server: run `node server.js`.', 'err');
+      setStatus(t('st.uploadlocal'), 'err');
     }
     updateSave();
   }),
@@ -1128,7 +1144,7 @@ $('#addForm').addEventListener('submit', async (e) => {
     state.videos.unshift(saved);
     render();
     addDialog.close();
-    toast(`Added “${saved.title}”`, 'ok');
+    toast(t('to.added', { title: saved.title }), 'ok');
     if (saved.kind === 'file') autoThumbnail(saved);
     $('#grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
@@ -1171,9 +1187,9 @@ function openEdit(id) {
   $('#edNotes').value = v.notes || '';
   $('#edUrl').value = v.url || '';
   $('#edEmbed').value = v.embedUrl || (v.kind === 'embed' ? PROVIDERS[v.provider]?.embed?.(v, 0) || '' : '');
-  $('#edKind').textContent = `${v.kind}${v.provider ? ' · ' + providerLabel(v) : ''}${canPickFrames(v) ? ' · frames readable' : ' · frames not readable'}`;
+  $('#edKind').textContent = `${v.kind}${v.provider ? ' · ' + providerLabel(v) : ''} · ${t(canPickFrames(v) ? 'edit.frames.ok' : 'edit.frames.no')}`;
   $('#edFrame').disabled = !canPickFrames(v);
-  $('#edFrame').title = canPickFrames(v) ? 'Pick any frame as the cover' : 'This source is an embedded player — its frames cannot be read by the browser';
+  $('#edFrame').title = t(canPickFrames(v) ? 'edit.frame.ok' : 'edit.frame.no');
   if (!editDialog.open) editDialog.showModal();
 }
 
@@ -1196,11 +1212,11 @@ $('#editForm').addEventListener('submit', async (e) => {
     embedUrl: embedOverride && embedOverride !== autoEmbed ? embedOverride : '',
   });
   editDialog.close();
-  toast('Saved', 'ok', 1800);
+  toast(t('to.saved'), 'ok', 1800);
 });
 
 $('#edDelete').addEventListener('click', async () => {
-  if (!(await confirmBox('Delete this video?', 'It is removed from data/videos.json. The original page or uploaded file is untouched.'))) return;
+  if (!(await confirmBox(t('cf.title'), t('cf.edit')))) return;
   const id = editing.id;
   await store.remove(id);
   state.videos = state.videos.filter((v) => v.id !== id);
@@ -1208,7 +1224,7 @@ $('#edDelete').addEventListener('click', async () => {
   render();
   editDialog.close();
   if (lb.open) closePlayer();
-  toast('Deleted', '', 1800);
+  toast(t('to.deleted'), '', 1800);
 });
 
 $('#edDefault').addEventListener('click', async () => {
@@ -1218,7 +1234,7 @@ $('#edDefault').addEventListener('click', async () => {
 
 $('#edImage').addEventListener('click', () => $('#tpUpload').click());
 $('#edImageUrl').addEventListener('click', () => {
-  const url = window.prompt('Image URL to use as the thumbnail:', 'https://');
+  const url = window.prompt(t('prompt.imageurl'), 'https://');
   if (url && url !== 'https://') setThumbnail(editing.id, url.trim(), 'url');
 });
 
@@ -1232,7 +1248,7 @@ async function setThumbnail(id, value, source, time = null) {
   if (!value) return;
   await patch(id, { thumbnail: value, thumbSource: source, thumbTime: time });
   if (editing?.id === id) paintEditThumb();
-  toast(source === 'frame' ? `Cover set to the frame at ${fmtTime(time)}` : 'Cover updated', 'ok', 2000);
+  toast(source === 'frame' ? t('to.coverframe', { t: fmtTime(time) }) : t('to.cover'), 'ok', 2000);
 }
 
 async function openThumbPicker(id) {
@@ -1267,7 +1283,7 @@ async function openThumbPicker(id) {
     video.onerror = () => {
       $('#tpFrame').hidden = true;
       $('#tpBlocked').hidden = false;
-      toast('That file could not be read for frames', 'err');
+      toast(t('to.framesfail'), 'err');
     };
     video.src = src;
     video.load();
@@ -1307,7 +1323,7 @@ $('#tpRange').addEventListener('input', (e) => jumpTo(parseFloat(e.target.value)
 const seekFromInput = () => {
   const t = parseTime($('#tpTime').value);
   if (t == null) {
-    toast('Use mm:ss, h:mm:ss, or plain seconds', 'err');
+    toast(t('to.timeformat'), 'err');
     return;
   }
   jumpTo(t);
@@ -1343,7 +1359,7 @@ $('#tpFrames').addEventListener('click', async (e) => {
 
 $('#tpUseUrl').addEventListener('click', () => {
   const url = $('#tpUrl').value.trim();
-  if (!url) return toast('Paste an image URL first', 'err');
+  if (!url) return toast(t('to.pasteurl'), 'err');
   setThumbnail(thumbTarget.id, url, 'url');
   thumbDialog.close();
 });
@@ -1402,13 +1418,13 @@ $('#grid').addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'edit') return openEdit(v.id);
   if (act === 'del') {
-    return confirmBox('Delete this video?', `“${v.title}” is removed from the library; the original link stays put.`).then(async (yes) => {
+    return confirmBox(t('cf.title'), t('cf.card', { title: v.title })).then(async (yes) => {
       if (!yes) return;
       await store.remove(v.id);
       state.videos = state.videos.filter((x) => x.id !== v.id);
       state.selected.delete(v.id);
       render();
-      toast('Deleted', '', 1800);
+      toast(t('to.deleted'), '', 1800);
     });
   }
   if (act === 'rename') return;
@@ -1439,9 +1455,14 @@ $('#grid').addEventListener('dragstart', (e) => {
   const ids = state.selecting && state.selected.has(id) ? [...state.selected] : [id];
   e.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids));
   e.dataTransfer.effectAllowed = 'move';
+  document.body.classList.add('drag-ids');
   requestAnimationFrame(() => card.classList.add('dragging'));
 });
-$('#grid').addEventListener('dragend', () => $$('.card.dragging').forEach((c) => c.classList.remove('dragging')));
+$('#grid').addEventListener('dragend', () => {
+  document.body.classList.remove('drag-ids');
+  $$('.card.dragging').forEach((c) => c.classList.remove('dragging'));
+  $$('.chip.hot').forEach((c) => c.classList.remove('hot'));
+});
 
 async function moveIds(ids, folderId) {
   try {
@@ -1451,21 +1472,21 @@ async function moveIds(ids, folderId) {
     });
     ids.forEach((id) => state.selected.delete(id));
     render();
-    const name = state.folders.find((f) => f.id === folderId)?.name || 'Unfiled';
-    toast(`Moved ${n} video${n === 1 ? '' : 's'} to ${name}`, 'ok', 2200);
+    const name = state.folders.find((f) => f.id === folderId)?.name || t('folder.unfiled');
+    toast(t('move.moved', { n: t(n === 1 ? 'count.one' : 'count.other', { n }), name }), 'ok', 2200);
   } catch (err) {
-    toast('Could not move: ' + err.message, 'err');
+    toast(t('move.fail', { err: err.message }), 'err');
   }
 }
 
 async function createFolderPrompt() {
-  const name = (window.prompt('New folder name:') || '').trim();
+  const name = (window.prompt(t('folder.prompt.new')) || '').trim();
   if (!name) return;
   try {
     const f = await store.createFolder(name);
     state.folders.push(f);
     render();
-    toast(`Folder “${name}” created`, 'ok', 1800);
+    toast(t('folder.created', { name }), 'ok', 1800);
   } catch (err) {
     toast(err.message, 'err');
   }
@@ -1474,7 +1495,7 @@ async function createFolderPrompt() {
 async function renameFolderPrompt(id) {
   const f = state.folders.find((x) => x.id === id);
   if (!f) return;
-  const name = (window.prompt('Rename folder:', f.name) || '').trim();
+  const name = (window.prompt(t('folder.prompt.rename'), f.name) || '').trim();
   if (!name || name === f.name) return;
   try {
     await store.renameFolder(id, name);
@@ -1488,21 +1509,40 @@ async function renameFolderPrompt(id) {
 async function deleteFolder(id) {
   const f = state.folders.find((x) => x.id === id);
   if (!f) return;
-  if (!(await confirmBox(`Delete folder “${f.name}”?`, 'Videos inside become unfiled. Nothing is deleted.'))) return;
+  const n = state.videos.filter((v) => v.folderId === id).length;
+  if (!(await confirmBox(t('folder.delete.title', { name: f.name }), t('folder.delete.text', { n })))) return;
   try {
     await store.removeFolder(id);
     state.folders = state.folders.filter((x) => x.id !== id);
-    state.videos.forEach((v) => {
-      if (v.folderId === id) v.folderId = '';
-    });
+    const gone = state.videos.filter((v) => v.folderId === id).map((v) => v.id);
+    state.videos = state.videos.filter((v) => v.folderId !== id);
+    gone.forEach((vid) => state.selected.delete(vid));
     if (state.folder === id) state.folder = 'all';
     render();
     if (moveDialog.open) paintMoveList();
-    toast('Folder deleted', '', 1800);
+    toast(t('folder.deleted'), '', 1800);
   } catch (err) {
     toast(err.message, 'err');
   }
 }
+
+function renderFolderActions() {
+  const f = state.folders.find((x) => x.id === state.folder);
+  const bar = $('#folderActions');
+  bar.hidden = !f;
+  if (!f) return;
+  const n = state.videos.filter((v) => v.folderId === f.id).length;
+  $('#faName').textContent = f.name;
+  $('#faCount').textContent = t(n === 1 ? 'count.one' : 'count.other', { n });
+  $('#faEmpty').disabled = !n;
+}
+
+$('#faEmpty').addEventListener('click', () => {
+  const ids = state.videos.filter((v) => v.folderId === state.folder).map((v) => v.id);
+  if (ids.length) moveIds(ids, '');
+});
+$('#faRename').addEventListener('click', () => renameFolderPrompt(state.folder));
+$('#faDelete').addEventListener('click', () => deleteFolder(state.folder));
 
 const folderbar = $('#folderbar');
 folderbar.addEventListener('click', (e) => {
@@ -1524,8 +1564,14 @@ folderbar.addEventListener('dragover', (e) => {
   e.dataTransfer.dropEffect = 'move';
   chip.classList.add('hot');
 });
+folderbar.addEventListener('dragenter', (e) => {
+  const chip = e.target.closest('[data-folder]');
+  if (chip && chip.dataset.folder !== 'all' && e.dataTransfer.types.includes(DRAG_MIME)) chip.classList.add('hot');
+});
 folderbar.addEventListener('dragleave', (e) => {
-  e.target.closest('[data-folder]')?.classList.remove('hot');
+  const chip = e.target.closest('[data-folder]');
+  // moving between a chip's own children must not clear the highlight
+  if (chip && !chip.contains(e.relatedTarget)) chip.classList.remove('hot');
 });
 folderbar.addEventListener('drop', async (e) => {
   const chip = e.target.closest('[data-folder]');
@@ -1547,11 +1593,11 @@ let moveTarget = '';
 
 function paintMoveList() {
   $('#mvList').innerHTML =
-    `<button type="button" class="move-opt${moveTarget === '' ? ' on' : ''}" data-mv=""><svg><use href="#i-folder" /></svg><span class="grow">Unfiled</span></button>` +
+    `<button type="button" class="move-opt${moveTarget === '' ? ' on' : ''}" data-mv=""><svg><use href="#i-folder" /></svg><span class="grow">${esc(t('folder.unfiled'))}</span></button>` +
     state.folders
       .map(
         (f) =>
-          `<button type="button" class="move-opt${moveTarget === f.id ? ' on' : ''}" data-mv="${f.id}"><svg><use href="#i-folder" /></svg><span class="grow">${esc(f.name)}</span><span class="icon-btn" data-mv-edit="${f.id}" title="Rename folder"><svg><use href="#i-edit" /></svg></span><span class="icon-btn" data-mv-del="${f.id}" title="Delete folder"><svg><use href="#i-trash" /></svg></span></button>`,
+          `<button type="button" class="move-opt${moveTarget === f.id ? ' on' : ''}" data-mv="${f.id}"><svg><use href="#i-folder" /></svg><span class="grow">${esc(f.name)}</span><span class="icon-btn" data-mv-edit="${f.id}" title="${esc(t('folder.rename'))}"><svg><use href="#i-edit" /></svg></span><span class="icon-btn" data-mv-del="${f.id}" title="${esc(t('folder.delete'))}"><svg><use href="#i-trash" /></svg></span></button>`,
       )
       .join('');
 }
@@ -1577,7 +1623,7 @@ $('#mvList').addEventListener('click', (e) => {
 
 $('#mvCreate').addEventListener('click', async () => {
   const name = $('#mvNew').value.trim();
-  if (!name) return toast('Type a folder name first', 'err');
+  if (!name) return toast(t('move.noname'), 'err');
   try {
     const f = await store.createFolder(name);
     state.folders.push(f);
@@ -1712,6 +1758,8 @@ window.addEventListener('dragleave', () => {
   }
 });
 window.addEventListener('drop', async (e) => {
+  // internal card drags are handled by the folder chips, never by the upload/link path
+  if (e.dataTransfer?.types?.includes(DRAG_MIME)) return;
   e.preventDefault();
   $('#dropzone').hidden = true;
   dragDepth = 0;
@@ -1746,13 +1794,8 @@ function setBackend(mode) {
   const el = $('#backend');
   el.className = 'dot ' + (mode === 'remote' ? 'live' : 'local');
   const demo = /(^|\.)github\.io$/.test(location.hostname);
-  el.textContent = mode === 'remote' ? 'saving to data/videos.json' : 'browser storage only — run `node server.js` for the JSON library';
-  $('#tip').textContent =
-    mode === 'remote'
-      ? 'Tip: double-click a title to rename it, press / to search, V to switch grid/list, drop a file anywhere to upload'
-      : demo
-        ? 'Live demo: edits stay in this browser. Clone the repo and run `node server.js` for the JSON library, uploads and frame picking'
-        : 'Tip: open this page through `node server.js` to store the library in a JSON file and upload videos';
+  el.textContent = mode === 'remote' ? t('foot.remote') : t('foot.local');
+  $('#tip').textContent = mode === 'remote' ? t('foot.tip.remote') : demo ? t('foot.tip.demo') : t('foot.tip.local');
 }
 
 async function boot() {
@@ -1770,6 +1813,7 @@ async function boot() {
     /* storage blocked */
   }
   applyGroup(savedGroup);
+  $('#langSel').value = i18nCurrent();
   try {
     const probe = await fetch('/api/state', { headers: { Accept: 'application/json' } });
     if (!probe.ok) throw new Error();
@@ -1783,7 +1827,7 @@ async function boot() {
     state.folders = lib.folders;
   } catch (err) {
     state.videos = [];
-    toast('Could not load the library: ' + err.message, 'err');
+    toast(t('to.loadfail', { err: err.message }), 'err');
   }
   // Browser-only mode (GitHub Pages demo, file://): start from the example
   // library once, so a first visit is never an empty grid.

@@ -20,7 +20,7 @@ let base;
 before(async () => {
   dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'reelkeep-test-'));
   await fsp.mkdir(path.join(dir, 'data'), { recursive: true });
-  for (const f of ['server.js', 'index.html', 'player.html', 'app.js', 'styles.css']) {
+  for (const f of ['server.js', 'index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js']) {
     await fsp.copyFile(path.join(ROOT, f), path.join(dir, f));
   }
   await fsp.copyFile(path.join(ROOT, 'data', 'videos.example.json'), path.join(dir, 'data', 'videos.example.json'));
@@ -73,7 +73,7 @@ test('first run seeds the example library', async () => {
 });
 
 test('serves the UI but never the library, source or repo internals', async () => {
-  for (const p of ['/', '/index.html', '/player.html', '/app.js', '/styles.css']) {
+  for (const p of ['/', '/index.html', '/player.html', '/app.js', '/styles.css', '/i18n.js']) {
     assert.equal((await get(p)).status, 200, p);
   }
   for (const p of ['/data/videos.json', '/data/videos.example.json', '/server.js', '/package.json', '/%2e%2e/server.js']) {
@@ -175,7 +175,8 @@ test('folders: create, rename, bulk move, delete unfiles', async () => {
   assert.equal((await fetch(`${base}/api/folders/${folder.id}`, { method: 'DELETE' })).status, 200);
   const final = await (await get('/api/state')).json();
   assert.equal(final.folders.length, before.folders.length);
-  assert.ok(final.videos.filter((v) => ids.includes(v.id)).every((v) => !v.folderId));
+  // deleting a folder deletes its member videos, not just unfiles them
+  assert.ok(final.videos.every((v) => !ids.includes(v.id)));
 });
 
 test('a corrupt library file is quarantined, not fatal', async () => {

@@ -23,7 +23,7 @@ Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `413`,
 | --- | --- | --- | --- |
 | POST | `/api/folders` | `{ name }` (trimmed, ≤ 60 chars) | `201 { folder }` — `{ id, name, createdAt }` |
 | PATCH | `/api/folders/:id` | `{ name }` | `200 { folder }` |
-| DELETE | `/api/folders/:id` | — | `200 { ok: true }` — member videos become unfiled, nothing is deleted |
+| DELETE | `/api/folders/:id` | — | `200 { ok: true, deleted }` — deletes the folder **and its member videos** (stored covers removed; uploaded files stay on disk). To keep the videos, move them out first via `/api/videos/move` with `folderId: ''` |
 
 ## Media and covers
 

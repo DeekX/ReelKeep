@@ -53,7 +53,7 @@ const MIME = {
 // Only the UI and the media folders are reachable over HTTP. The library JSON,
 // the server source and repo internals (.git, package.json, …) must never be
 // served — HOST=0.0.0.0 puts this server on the LAN.
-const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css']);
+const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js']);
 const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR];
 const UPLOAD_EXT = new Set(['.mp4', '.m4v', '.webm', '.ogv', '.ogg', '.mov', '.mkv', '.mp3', '.m4a', '.wav']);
 
@@ -408,12 +408,15 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, { folder: db.folders[idx] });
         }
         if (req.method === 'DELETE') {
+          const id = fmatch[1];
           db.folders.splice(idx, 1);
-          db.videos.forEach((v) => {
-            if (v.folderId === fmatch[1]) v.folderId = '';
-          });
+          const gone = db.videos.filter((v) => v.folderId === id);
+          db.videos = db.videos.filter((v) => v.folderId !== id);
           await writeDb(db);
-          return send(res, 200, { ok: true });
+          for (const v of gone) {
+            if (v.thumbnail?.startsWith?.('thumbnails/')) await fsp.rm(path.join(ROOT, v.thumbnail), { force: true });
+          }
+          return send(res, 200, { ok: true, deleted: gone.length });
         }
       }
 

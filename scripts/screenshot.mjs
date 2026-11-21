@@ -148,6 +148,11 @@ try {
   await sleep(400);
   await shoot('screenshot-move.png');
 
+  // Right-to-left layout, for the README languages section.
+  await evaluate(`moveDialog.close(); setSelecting(false); setLocale('ar')`);
+  await sleep(700);
+  await shoot('screenshot-rtl.png');
+
   ws.close();
 } finally {
   browser.kill();

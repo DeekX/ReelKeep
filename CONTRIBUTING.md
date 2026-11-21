@@ -15,6 +15,10 @@ dependency-free project — please keep it that way.
 - **Local-first, loopback by default.** Anything that changes the network
   surface (new endpoints, new fetches) needs a note in SECURITY.md and the
   README.
+- **Every user-facing string goes through `i18n.js`** — `t('key')` in JS,
+  `data-i18n` / `data-i18n-placeholder` / `data-i18n-title` / `data-i18n-html`
+  in markup. New keys must be added to all 11 locale dictionaries; never
+  hardcode UI text in `app.js` or `index.html`.
 
 ## Setup
 

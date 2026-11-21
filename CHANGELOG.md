@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.3.0] - 2026-11-21
+
+### Added
+- Internationalization: 11 languages (English, Arabic, Russian, French, German, Spanish,
+  Simplified Chinese, Japanese, Korean, Hindi, Turkish) via a dependency-free `i18n.js`
+  runtime; toolbar language selector, browser-language detection, remembered choice,
+  locale-aware dates, and full right-to-left layout for Arabic.
+- Folder action bar when a folder is open: Empty folder (move contents to Unfiled),
+  Rename, Delete folder.
+- Drag affordances: folder chips outline as drop targets while cards are dragged; the
+  hovered chip highlights; highlights survive moving across chip children.
+
+### Changed
+- Deleting a folder now deletes its member videos too, with a confirmation stating the
+  count; uploaded files on disk are never touched. Empty folder is the non-destructive
+  alternative.
+- Edit-dialog thumbnail fills its 16:9 holder (provider stills no longer show black bars).
+
+### Fixed
+- Dragging a card by its thumbnail no longer starts a native image drag that opened the
+  add-link dialog on drop; internal card drops are ignored by the upload/link path.
+- Source filter label re-translates on language change.
+
 ## [1.2.0] - 2026-11-21
 
 ### Added
