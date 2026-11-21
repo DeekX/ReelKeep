@@ -358,10 +358,19 @@ function playableSrc(v) {
   if (!src) return null;
   if (src.startsWith('/') || src.startsWith(location.origin)) return src;
   if (/^(data|blob):/.test(src)) return src;
+  // Browser-only mode has no /media proxy: play the remote file directly.
+  // Playback works, but cross-origin pixels stay unreadable for thumbnails.
+  if (state.backend !== 'remote') return src;
   return `/media?url=${encodeURIComponent(src)}${v.url && v.fileUrl ? `&ref=${encodeURIComponent(v.url)}` : ''}`;
 }
 
-const canPickFrames = (v) => v.kind === 'file' && !!playableSrc(v);
+const canPickFrames = (v) => {
+  if (v.kind !== 'file') return false;
+  const src = playableSrc(v);
+  if (!src) return false;
+  if (state.backend === 'remote') return true;
+  return src.startsWith('/') || src.startsWith(location.origin) || /^(data|blob):/.test(src);
+};
 
 /* ============================================================== state */
 
@@ -649,7 +658,7 @@ function openPlayer(id) {
   if (v.duration) bits.push(`<span>${fmtTime(v.duration)}</span>`);
   if (v.startAt) bits.push(`<span>starts ${esc(fmtTime(v.startAt))}</span>`);
   bits.push(...(v.tags || []).map((t) => `<span class="t">#${esc(t)}</span>`));
-  if (v.notes) bits.push(`<span title="${esc(v.notes)}">📝 has notes</span>`);
+  if (v.notes) bits.push(`<span title="${esc(v.notes)}">has notes</span>`);
   $('#lbMeta').innerHTML = bits.join('');
   $('#lbRemember').checked = false;
   $('#lbRemember').closest('.switch').hidden = v.kind !== 'file';
@@ -1398,11 +1407,14 @@ function setBackend(mode) {
   state.backend = mode;
   const el = $('#backend');
   el.className = 'dot ' + (mode === 'remote' ? 'live' : 'local');
+  const demo = /(^|\.)github\.io$/.test(location.hostname);
   el.textContent = mode === 'remote' ? 'saving to data/videos.json' : 'browser storage only — run `node server.js` for the JSON library';
   $('#tip').textContent =
     mode === 'remote'
       ? 'Tip: double-click a title to rename it, press / to search, V to switch grid/list, drop a file anywhere to upload'
-      : 'Tip: open this page through `node server.js` to store the library in a JSON file and upload videos';
+      : demo
+        ? 'Live demo: edits stay in this browser. Clone the repo and run `node server.js` for the JSON library, uploads and frame picking'
+        : 'Tip: open this page through `node server.js` to store the library in a JSON file and upload videos';
 }
 
 async function boot() {
@@ -1425,6 +1437,27 @@ async function boot() {
   } catch (err) {
     state.videos = [];
     toast('Could not load the library: ' + err.message, 'err');
+  }
+  // Browser-only mode (GitHub Pages demo, file://): start from the example
+  // library once, so a first visit is never an empty grid.
+  if (state.backend !== 'remote' && !state.videos.length) {
+    let touched = true;
+    try {
+      touched = localStorage.getItem(LS_KEY) !== null;
+    } catch {
+      /* storage blocked */
+    }
+    if (!touched) {
+      try {
+        const res = await fetch('data/videos.example.json');
+        if (res.ok) {
+          state.videos = (await res.json()).videos || [];
+          localLib.write({ videos: state.videos });
+        }
+      } catch {
+        /* offline or file:// — an empty gallery is fine */
+      }
+    }
   }
   render();
   // give playable videos without a cover their default frame (the opening shot)
