@@ -19,7 +19,7 @@ dependency-free project — please keep it that way.
 ## Setup
 
 ```sh
-git clone https://github.com/DeekX/reelkeep.git
+git clone https://github.com/DeekX/ReelKeep.git
 cd reelkeep
 node server.js        # http://127.0.0.1:5178
 ```

@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 - Live browser demo on GitHub Pages, seeded with the example library
-  (`https://deekx.github.io/reelkeep/`).
+  (`https://deekx.github.io/ReelKeep/`).
 - Zero-dependency smoke test suite (`npm test`, `node:test`) and CI across
   Linux/macOS/Windows × Node 18/20/22.
 - Frame-picker screenshot and refreshed gallery/player screenshots in the

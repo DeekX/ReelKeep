@@ -5,15 +5,15 @@ give it the cover you want, and keep everything in a plain JSON file.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node >= 18](https://img.shields.io/badge/node-%E2%89%A5%2018-339933)](https://nodejs.org)
-[![CI](https://github.com/DeekX/reelkeep/actions/workflows/ci.yml/badge.svg)](https://github.com/DeekX/reelkeep/actions/workflows/ci.yml)
-[![Live demo](https://img.shields.io/badge/demo-live-5e6ad2)](https://deekx.github.io/reelkeep/)
+[![CI](https://github.com/DeekX/ReelKeep/actions/workflows/ci.yml/badge.svg)](https://github.com/DeekX/ReelKeep/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/demo-live-5e6ad2)](https://deekx.github.io/ReelKeep/)
 
 ![Reelkeep gallery](docs/screenshot-grid.png)
 
 **No build step, no `npm install`, no database.** One dependency-free Node server
 plus vanilla HTML/CSS/JS — clone it and run.
 
-**Try it without installing:** <https://deekx.github.io/reelkeep/> — a browser-only
+**Try it without installing:** <https://deekx.github.io/ReelKeep/> — a browser-only
 demo seeded with the example library. Edits stay in your browser; uploads, the JSON
 file and frame-accurate thumbnails need the local server below.
 

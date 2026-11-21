@@ -24,11 +24,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DeekX/reelkeep.git"
+    "url": "git+https://github.com/DeekX/ReelKeep.git"
   },
-  "homepage": "https://deekx.github.io/reelkeep/",
+  "homepage": "https://deekx.github.io/ReelKeep/",
   "bugs": {
-    "url": "https://github.com/DeekX/reelkeep/issues"
+    "url": "https://github.com/DeekX/ReelKeep/issues"
   },
   "engines": {
     "node": ">=18"

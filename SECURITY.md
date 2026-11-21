@@ -28,7 +28,7 @@ Reelkeep is a **personal, local-first tool**, not a hosted service:
 
 Please **do not open a public issue** for security problems. Use GitHub's
 private vulnerability reporting:
-<https://github.com/DeekX/reelkeep/security/advisories/new>
+<https://github.com/DeekX/ReelKeep/security/advisories/new>
 
 Include reproduction steps and impact. You can expect an acknowledgement
 within a few days; fixes ship as patch releases with credit unless you prefer
