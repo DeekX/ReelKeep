@@ -1,10 +1,12 @@
 {
   "name": "reelkeep",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local-first video library: paste any link, watch in a unified player, pick frame-accurate thumbnails. Zero dependencies, no build step, plain JSON storage.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test",
+    "screenshot": "node scripts/screenshot.mjs"
   },
   "keywords": [
     "video",
@@ -18,7 +20,16 @@
     "vanilla-js",
     "json"
   ],
+  "author": "DEEK",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeekX/reelkeep.git"
+  },
+  "homepage": "https://deekx.github.io/reelkeep/",
+  "bugs": {
+    "url": "https://github.com/DeekX/reelkeep/issues"
+  },
   "engines": {
     "node": ">=18"
   }
