@@ -44,8 +44,18 @@ const MIME = {
   '.mov': 'video/quicktime',
   '.mkv': 'video/x-matroska',
   '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
   '.txt': 'text/plain; charset=utf-8',
 };
+
+// Only the UI and the media folders are reachable over HTTP. The library JSON,
+// the server source and repo internals (.git, package.json, …) must never be
+// served — HOST=0.0.0.0 puts this server on the LAN.
+const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css']);
+const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR];
+const UPLOAD_EXT = new Set(['.mp4', '.m4v', '.webm', '.ogv', '.ogg', '.mov', '.mkv', '.mp3', '.m4a', '.wav']);
 
 [DATA_DIR, THUMB_DIR, VIDEO_DIR].forEach((d) => fs.mkdirSync(d, { recursive: true }));
 if (!fs.existsSync(DB_FILE)) {
@@ -299,7 +309,7 @@ async function saveUpload(req, declaredName) {
     /* already decoded */
   }
   const ext = path.extname(raw).toLowerCase();
-  const safeExt = /^\.[a-z0-9]{2,5}$/.test(ext) ? ext : '.mp4';
+  const safeExt = UPLOAD_EXT.has(ext) ? ext : '.mp4';
   const name = `${Date.now()}_${crypto.randomUUID().slice(0, 8)}${safeExt}`;
   const file = path.join(VIDEO_DIR, name);
   const ws = fs.createWriteStream(file);
@@ -464,9 +474,17 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, { error: 'unknown endpoint' });
     }
 
-    const rel = decodeURIComponent(p === '/' ? 'index.html' : p.slice(1));
+    let rel;
+    try {
+      rel = decodeURIComponent(p === '/' ? 'index.html' : p.slice(1));
+    } catch {
+      return send(res, 400, { error: 'malformed path' });
+    }
     const abs = path.resolve(ROOT, rel);
-    if (!inside(ROOT, abs)) return send(res, 403, { error: 'forbidden' });
+    const relFromRoot = path.relative(ROOT, abs);
+    const publicFile = PUBLIC_FILES.has(relFromRoot);
+    const publicMedia = PUBLIC_DIRS.some((d) => abs !== d && inside(d, abs));
+    if (!publicFile && !publicMedia) return send(res, 404, { error: 'not found' });
     return serveStatic(req, res, abs);
   } catch (err) {
     console.error(`${req.method} ${p} ->`, err.message);
@@ -503,7 +521,8 @@ process.on('uncaughtException', (err) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`  reelkeep  ->  http://${HOST}:${PORT}`);
+  const port = server.address().port;
+  console.log(`  reelkeep  ->  http://${HOST}:${port}`);
   console.log(`  library file   ->  ${DB_FILE}`);
   console.log(`  stop with Ctrl+C`);
 });
