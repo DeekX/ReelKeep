@@ -140,6 +140,14 @@ try {
   await sleep(1500); // seek + canvas draw
   await shoot('screenshot-frames.png');
 
+  // Per-source sections, then the folder move dialog with a live selection.
+  await evaluate(`thumbDialog.close(); applyGroup(true)`);
+  await sleep(600);
+  await shoot('screenshot-groups.png');
+  await evaluate(`applyGroup(false); setSelecting(true); toggleSelect('v_ex0000000001'); toggleSelect('v_ex0000000004'); openMove()`);
+  await sleep(400);
+  await shoot('screenshot-move.png');
+
   ws.close();
 } finally {
   browser.kill();

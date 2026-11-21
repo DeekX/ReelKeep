@@ -71,6 +71,7 @@ async function readDb() {
   try {
     const db = JSON.parse(await fsp.readFile(DB_FILE, 'utf8'));
     if (!Array.isArray(db.videos)) db.videos = [];
+    if (!Array.isArray(db.folders)) db.folders = [];
     return db;
   } catch (err) {
     const backup = `${DB_FILE}.corrupt-${Date.now()}`;
@@ -379,7 +380,58 @@ const server = http.createServer(async (req, res) => {
 
       if (p === '/api/state' && req.method === 'GET') {
         const db = await readDb();
-        return send(res, 200, { version: 1, videos: db.videos });
+        return send(res, 200, { version: 1, videos: db.videos, folders: db.folders });
+      }
+
+      if (p === '/api/folders' && req.method === 'POST') {
+        const body = await readJson(req);
+        const name = String(body.name || '').trim().slice(0, 60);
+        if (!name) return send(res, 400, { error: 'folder needs a name' });
+        const folder = { id: 'f_' + crypto.randomUUID().slice(0, 12), name, createdAt: new Date().toISOString() };
+        const db = await readDb();
+        db.folders.push(folder);
+        await writeDb(db);
+        return send(res, 201, { folder });
+      }
+
+      const fmatch = /^\/api\/folders\/([\w-]+)$/.exec(p);
+      if (fmatch) {
+        const db = await readDb();
+        const idx = db.folders.findIndex((f) => f.id === fmatch[1]);
+        if (idx === -1) return send(res, 404, { error: 'no such folder' });
+        if (req.method === 'PATCH') {
+          const body = await readJson(req);
+          const name = String(body.name || '').trim().slice(0, 60);
+          if (!name) return send(res, 400, { error: 'folder needs a name' });
+          db.folders[idx] = { ...db.folders[idx], name };
+          await writeDb(db);
+          return send(res, 200, { folder: db.folders[idx] });
+        }
+        if (req.method === 'DELETE') {
+          db.folders.splice(idx, 1);
+          db.videos.forEach((v) => {
+            if (v.folderId === fmatch[1]) v.folderId = '';
+          });
+          await writeDb(db);
+          return send(res, 200, { ok: true });
+        }
+      }
+
+      if (p === '/api/videos/move' && req.method === 'POST') {
+        const { ids, folderId } = await readJson(req);
+        if (!Array.isArray(ids)) return send(res, 400, { error: 'ids must be an array' });
+        const db = await readDb();
+        const target = folderId || '';
+        if (target && !db.folders.some((f) => f.id === target)) return send(res, 404, { error: 'no such folder' });
+        let moved = 0;
+        db.videos.forEach((v) => {
+          if (ids.includes(v.id)) {
+            v.folderId = target;
+            moved++;
+          }
+        });
+        await writeDb(db);
+        return send(res, 200, { moved });
       }
 
       if (p === '/api/videos' && req.method === 'POST') {
@@ -397,7 +449,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const match = /^\/api\/videos\/([\w-]+)$/.exec(p);
-      if (match && match[1] !== 'upload') {
+      if (match && match[1] !== 'upload' && match[1] !== 'move') {
         const db = await readDb();
         const idx = db.videos.findIndex((v) => v.id === match[1]);
         if (idx === -1) return send(res, 404, { error: 'no such video' });

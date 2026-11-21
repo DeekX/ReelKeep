@@ -376,12 +376,17 @@ const canPickFrames = (v) => {
 
 const state = {
   videos: [],
+  folders: [],
+  folder: 'all', // 'all' | 'unfiled' | folder id
   q: '',
   tokens: [],
   sort: 'added',
   provider: '',
   tags: new Set(),
   view: 'grid',
+  group: false, // cluster cards into per-source sections
+  selecting: false,
+  selected: new Set(),
   backend: 'remote', // or 'local'
   current: null, // video open in lightbox
   lastTime: 0,
@@ -406,6 +411,22 @@ function applyView(mode) {
 $('#viewGrid').addEventListener('click', () => applyView('grid'));
 $('#viewList').addEventListener('click', () => applyView('list'));
 
+const GROUP_KEY = 'video-gallery.group';
+
+function applyGroup(on) {
+  state.group = !!on;
+  $('#groupBtn').classList.toggle('on', state.group);
+  $('#groupBtn').setAttribute('aria-pressed', String(state.group));
+  try {
+    localStorage.setItem(GROUP_KEY, state.group ? '1' : '0');
+  } catch {
+    /* private mode or file:// */
+  }
+  render();
+}
+
+$('#groupBtn').addEventListener('click', () => applyGroup(!state.group));
+
 const LS_KEY = 'video-gallery.v1';
 const localLib = {
   read: () => {
@@ -425,11 +446,78 @@ const localLib = {
 };
 
 const store = {
-  async all() {
-    if (state.backend !== 'remote') return localLib.read().videos || [];
+  async load() {
+    if (state.backend !== 'remote') {
+      const db = localLib.read();
+      return { videos: db.videos || [], folders: db.folders || [] };
+    }
     const res = await fetch('/api/state', { headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(await res.text());
-    return (await res.json()).videos || [];
+    const db = await res.json();
+    return { videos: db.videos || [], folders: db.folders || [] };
+  },
+  async createFolder(name) {
+    if (state.backend !== 'remote') {
+      const db = localLib.read();
+      const folder = { id: 'f_' + Math.random().toString(36).slice(2, 14), name, createdAt: new Date().toISOString() };
+      db.folders = [...(db.folders || []), folder];
+      localLib.write(db);
+      return folder;
+    }
+    const res = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    return (await res.json()).folder;
+  },
+  async renameFolder(id, name) {
+    if (state.backend !== 'remote') {
+      const db = localLib.read();
+      const f = (db.folders || []).find((x) => x.id === id);
+      if (!f) throw new Error('not found');
+      f.name = name;
+      localLib.write(db);
+      return f;
+    }
+    const res = await fetch(`/api/folders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    return (await res.json()).folder;
+  },
+  async removeFolder(id) {
+    if (state.backend !== 'remote') {
+      const db = localLib.read();
+      db.folders = (db.folders || []).filter((f) => f.id !== id);
+      (db.videos || []).forEach((v) => {
+        if (v.folderId === id) v.folderId = '';
+      });
+      localLib.write(db);
+      return;
+    }
+    const res = await fetch(`/api/folders/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.statusText);
+  },
+  async move(ids, folderId) {
+    if (state.backend !== 'remote') {
+      const db = localLib.read();
+      (db.videos || []).forEach((v) => {
+        if (ids.includes(v.id)) v.folderId = folderId;
+      });
+      localLib.write(db);
+      return ids.length;
+    }
+    const res = await fetch('/api/videos/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, folderId }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    return (await res.json()).moved;
   },
   async create(rec) {
     if (state.backend !== 'remote') {
@@ -554,6 +642,8 @@ function highlight(text, tokens) {
 function visibleVideos() {
   const tokens = state.tokens;
   let list = state.videos.filter((v) => {
+    if (state.folder === 'unfiled' && v.folderId) return false;
+    if (state.folder !== 'all' && state.folder !== 'unfiled' && v.folderId !== state.folder) return false;
     if (state.provider && v.provider !== state.provider) return false;
     if (state.tags.size && ![...state.tags].every((t) => (v.tags || []).includes(t))) return false;
     return matches(v, tokens);
@@ -576,8 +666,14 @@ function cardHtml(v, tokens) {
   const fav = favSrc ? `<img src="${esc(favSrc)}" alt="" onerror="this.remove()">` : '';
   const stamp = v.duration ? fmtTime(v.duration) : v.startAt ? '▶ ' + fmtTime(v.startAt) : '';
   const tags = (v.tags || []).slice(0, 3).map((t) => `<span class="t">#${esc(t)}</span>`).join('');
-  return `<article class="card" data-id="${v.id}" tabindex="0" aria-label="${esc(v.title)}">
+  const folder = state.folders.find((f) => f.id === v.folderId);
+  const fold = folder && state.folder === 'all' ? `<span class="fold"><svg><use href="#i-folder" /></svg>${esc(folder.name)}</span>` : '';
+  const sel = state.selecting
+    ? `<label class="card-select"><input type="checkbox" data-act="select" ${state.selected.has(v.id) ? 'checked' : ''} aria-label="Select ${esc(v.title)}" /></label>`
+    : '';
+  return `<article class="card${state.selected.has(v.id) ? ' selected' : ''}" data-id="${v.id}" tabindex="0" draggable="true" aria-label="${esc(v.title)}">
     <div class="thumb">
+      ${sel}
       <div class="ph"><svg><use href="#i-film" /></svg></div>
       ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
       <span class="badge">${fav}${label}</span>
@@ -591,7 +687,7 @@ function cardHtml(v, tokens) {
     <div class="card-body">
       <h3 class="card-title" data-act="rename" title="Double-click to rename">${highlight(v.title || 'Untitled', tokens)}</h3>
       ${v.notes ? `<p class="card-notes">${esc(v.notes)}</p>` : ''}
-      <div class="card-sub">${tags}<span class="host">${esc(hostOf(v.url) || 'local file')}</span><span>· ${esc(relDate(v.addedAt))}</span>${v.startAt ? `<span>· starts ${esc(fmtTime(v.startAt))}</span>` : ''}</div>
+      <div class="card-sub">${fold}${tags}<span class="host">${esc(hostOf(v.url) || 'local file')}</span><span>· ${esc(relDate(v.addedAt))}</span>${v.startAt ? `<span>· starts ${esc(fmtTime(v.startAt))}</span>` : ''}</div>
     </div>
   </article>`;
 }
@@ -619,10 +715,32 @@ function renderProviders() {
       .join('');
 }
 
+const groupKey = (v) => (v.provider === 'page' || v.provider === 'custom' ? hostOf(v.url) || v.provider : v.provider);
+
 function render() {
   const tokens = state.tokens;
   const list = visibleVideos();
-  $('#grid').innerHTML = list.map((v) => cardHtml(v, tokens)).join('');
+  let html;
+  if (state.group) {
+    const groups = new Map();
+    list.forEach((v) => {
+      const k = groupKey(v);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(v);
+    });
+    html = [...groups.values()]
+      .sort((a, b) => providerLabel(a[0]).localeCompare(providerLabel(b[0])))
+      .map(
+        (vs) =>
+          `<div class="group-head"><svg><use href="#i-group" /></svg><h2>${esc(providerLabel(vs[0]))}</h2><span>${vs.length}</span></div>` +
+          vs.map((v) => cardHtml(v, tokens)).join(''),
+      )
+      .join('');
+  } else {
+    html = list.map((v) => cardHtml(v, tokens)).join('');
+  }
+  $('#grid').innerHTML = html;
+  $('#grid').classList.toggle('selecting', state.selecting);
   // an empty flex:1 grid would eat the free space and push #empty to the footer
   $('#grid').hidden = list.length === 0;
   $('#count').textContent = `${state.videos.length} video${state.videos.length === 1 ? '' : 's'}` + (tokens.length || state.tags.size || state.provider ? ` · ${list.length} shown` : '');
@@ -637,6 +755,46 @@ function render() {
   }
   renderTagbar();
   renderProviders();
+  renderFolderbar();
+  renderSelectbar();
+}
+
+function renderFolderbar() {
+  const counts = new Map();
+  let unfiled = 0;
+  state.videos.forEach((v) => {
+    if (v.folderId) counts.set(v.folderId, (counts.get(v.folderId) || 0) + 1);
+    else unfiled++;
+  });
+  const chip = (key, label, n, extra = '') =>
+    `<button class="chip${state.folder === key ? ' on' : ''}" data-folder="${esc(key)}" ${extra}>${label}<small>${n}</small></button>`;
+  $('#folderbar').innerHTML =
+    chip('all', 'All videos', state.videos.length) +
+    chip('unfiled', 'Unfiled', unfiled) +
+    state.folders
+      .map((f) => chip(f.id, `<svg class="fi"><use href="#i-folder" /></svg>${esc(f.name)}`, counts.get(f.id) || 0, 'title="Double-click to rename · drop cards here to move"'))
+      .join('') +
+    `<button class="chip newfolder" data-newfolder="1" title="Create a folder"><svg class="fi"><use href="#i-plus" /></svg>New folder</button>`;
+}
+
+function renderSelectbar() {
+  const bar = $('#selectbar');
+  bar.hidden = !state.selecting;
+  $('#selCount').textContent = `${state.selected.size} selected`;
+  $('#selMove').disabled = !state.selected.size;
+  $('#selectBtn').classList.toggle('on', state.selecting);
+  $('#selectBtn').setAttribute('aria-pressed', String(state.selecting));
+}
+
+function toggleSelect(id) {
+  state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id);
+  render();
+}
+
+function setSelecting(on) {
+  state.selecting = on;
+  if (!on) state.selected.clear();
+  render();
 }
 
 /* ============================================================ lightbox */
@@ -1046,6 +1204,7 @@ $('#edDelete').addEventListener('click', async () => {
   const id = editing.id;
   await store.remove(id);
   state.videos = state.videos.filter((v) => v.id !== id);
+  state.selected.delete(id);
   render();
   editDialog.close();
   if (lb.open) closePlayer();
@@ -1239,6 +1398,7 @@ $('#grid').addEventListener('click', (e) => {
   const card = e.target.closest('.card');
   if (!card) return;
   const v = byId(card.dataset.id);
+  if (state.selecting) return toggleSelect(v.id);
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'edit') return openEdit(v.id);
   if (act === 'del') {
@@ -1246,6 +1406,7 @@ $('#grid').addEventListener('click', (e) => {
       if (!yes) return;
       await store.remove(v.id);
       state.videos = state.videos.filter((x) => x.id !== v.id);
+      state.selected.delete(v.id);
       render();
       toast('Deleted', '', 1800);
     });
@@ -1256,14 +1417,187 @@ $('#grid').addEventListener('click', (e) => {
 
 $('#grid').addEventListener('dblclick', (e) => {
   const card = e.target.closest('.card');
-  if (!card) return;
+  if (!card || state.selecting) return;
   startRename(byId(card.dataset.id), e.target.closest('[data-act="rename"]'));
 });
 
 $('#grid').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
   const card = e.target.closest('.card');
-  if (card) openPlayer(card.dataset.id);
+  if (!card) return;
+  state.selecting ? toggleSelect(card.dataset.id) : openPlayer(card.dataset.id);
+});
+
+/* ============================================ folders, selection, drag */
+
+const DRAG_MIME = 'application/x-reelkeep-ids';
+
+$('#grid').addEventListener('dragstart', (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  const id = card.dataset.id;
+  const ids = state.selecting && state.selected.has(id) ? [...state.selected] : [id];
+  e.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids));
+  e.dataTransfer.effectAllowed = 'move';
+  requestAnimationFrame(() => card.classList.add('dragging'));
+});
+$('#grid').addEventListener('dragend', () => $$('.card.dragging').forEach((c) => c.classList.remove('dragging')));
+
+async function moveIds(ids, folderId) {
+  try {
+    const n = await store.move(ids, folderId);
+    state.videos.forEach((v) => {
+      if (ids.includes(v.id)) v.folderId = folderId;
+    });
+    ids.forEach((id) => state.selected.delete(id));
+    render();
+    const name = state.folders.find((f) => f.id === folderId)?.name || 'Unfiled';
+    toast(`Moved ${n} video${n === 1 ? '' : 's'} to ${name}`, 'ok', 2200);
+  } catch (err) {
+    toast('Could not move: ' + err.message, 'err');
+  }
+}
+
+async function createFolderPrompt() {
+  const name = (window.prompt('New folder name:') || '').trim();
+  if (!name) return;
+  try {
+    const f = await store.createFolder(name);
+    state.folders.push(f);
+    render();
+    toast(`Folder “${name}” created`, 'ok', 1800);
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+async function renameFolderPrompt(id) {
+  const f = state.folders.find((x) => x.id === id);
+  if (!f) return;
+  const name = (window.prompt('Rename folder:', f.name) || '').trim();
+  if (!name || name === f.name) return;
+  try {
+    await store.renameFolder(id, name);
+    f.name = name;
+    render();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+async function deleteFolder(id) {
+  const f = state.folders.find((x) => x.id === id);
+  if (!f) return;
+  if (!(await confirmBox(`Delete folder “${f.name}”?`, 'Videos inside become unfiled. Nothing is deleted.'))) return;
+  try {
+    await store.removeFolder(id);
+    state.folders = state.folders.filter((x) => x.id !== id);
+    state.videos.forEach((v) => {
+      if (v.folderId === id) v.folderId = '';
+    });
+    if (state.folder === id) state.folder = 'all';
+    render();
+    if (moveDialog.open) paintMoveList();
+    toast('Folder deleted', '', 1800);
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+const folderbar = $('#folderbar');
+folderbar.addEventListener('click', (e) => {
+  if (e.target.closest('[data-newfolder]')) return createFolderPrompt();
+  const chip = e.target.closest('[data-folder]');
+  if (!chip) return;
+  state.folder = chip.dataset.folder;
+  render();
+});
+folderbar.addEventListener('dblclick', (e) => {
+  const chip = e.target.closest('[data-folder]');
+  if (!chip || chip.dataset.folder === 'all' || chip.dataset.folder === 'unfiled') return;
+  renameFolderPrompt(chip.dataset.folder);
+});
+folderbar.addEventListener('dragover', (e) => {
+  const chip = e.target.closest('[data-folder]');
+  if (!chip || chip.dataset.folder === 'all' || !e.dataTransfer.types.includes(DRAG_MIME)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  chip.classList.add('hot');
+});
+folderbar.addEventListener('dragleave', (e) => {
+  e.target.closest('[data-folder]')?.classList.remove('hot');
+});
+folderbar.addEventListener('drop', async (e) => {
+  const chip = e.target.closest('[data-folder]');
+  const raw = chip && e.dataTransfer.getData(DRAG_MIME);
+  if (!raw) return;
+  e.preventDefault();
+  chip.classList.remove('hot');
+  const target = chip.dataset.folder === 'unfiled' ? '' : chip.dataset.folder;
+  if (target === 'all') return;
+  await moveIds(JSON.parse(raw), target);
+});
+
+$('#selectBtn').addEventListener('click', () => setSelecting(!state.selecting));
+$('#selClear').addEventListener('click', () => setSelecting(false));
+$('#selMove').addEventListener('click', openMove);
+
+const moveDialog = $('#moveDialog');
+let moveTarget = '';
+
+function paintMoveList() {
+  $('#mvList').innerHTML =
+    `<button type="button" class="move-opt${moveTarget === '' ? ' on' : ''}" data-mv=""><svg><use href="#i-folder" /></svg><span class="grow">Unfiled</span></button>` +
+    state.folders
+      .map(
+        (f) =>
+          `<button type="button" class="move-opt${moveTarget === f.id ? ' on' : ''}" data-mv="${f.id}"><svg><use href="#i-folder" /></svg><span class="grow">${esc(f.name)}</span><span class="icon-btn" data-mv-edit="${f.id}" title="Rename folder"><svg><use href="#i-edit" /></svg></span><span class="icon-btn" data-mv-del="${f.id}" title="Delete folder"><svg><use href="#i-trash" /></svg></span></button>`,
+      )
+      .join('');
+}
+
+function openMove() {
+  if (!state.selected.size) return;
+  moveTarget = '';
+  $('#mvNew').value = '';
+  paintMoveList();
+  moveDialog.showModal();
+}
+
+$('#mvList').addEventListener('click', (e) => {
+  const edit = e.target.closest('[data-mv-edit]');
+  if (edit) return renameFolderPrompt(edit.dataset.mvEdit);
+  const del = e.target.closest('[data-mv-del]');
+  if (del) return deleteFolder(del.dataset.mvDel);
+  const opt = e.target.closest('[data-mv]');
+  if (!opt) return;
+  moveTarget = opt.dataset.mv;
+  paintMoveList();
+});
+
+$('#mvCreate').addEventListener('click', async () => {
+  const name = $('#mvNew').value.trim();
+  if (!name) return toast('Type a folder name first', 'err');
+  try {
+    const f = await store.createFolder(name);
+    state.folders.push(f);
+    moveTarget = f.id;
+    $('#mvNew').value = '';
+    paintMoveList();
+    render();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+});
+
+$('#moveForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ids = [...state.selected];
+  if (!ids.length) return;
+  const target = moveTarget;
+  moveDialog.close();
+  setSelecting(false);
+  await moveIds(ids, target);
 });
 
 function startRename(v, el) {
@@ -1355,6 +1689,8 @@ document.addEventListener('keydown', (e) => {
     openAdd();
   }
   if (e.key.toLowerCase() === 'v' && !typing && !$$('dialog[open]').length) applyView(state.view === 'grid' ? 'list' : 'grid');
+  if (e.key.toLowerCase() === 'g' && !typing && !$$('dialog[open]').length) applyGroup(!state.group);
+  if (e.key === 'Escape' && state.selecting && !$$('dialog[open]').length) setSelecting(false);
   if (e.key === 'Escape' && typing && document.activeElement === $('#search')) {
     $('#search').value = '';
     state.tokens = [];
@@ -1427,6 +1763,13 @@ async function boot() {
     /* storage blocked */
   }
   applyView(savedView);
+  let savedGroup = false;
+  try {
+    savedGroup = localStorage.getItem(GROUP_KEY) === '1';
+  } catch {
+    /* storage blocked */
+  }
+  applyGroup(savedGroup);
   try {
     const probe = await fetch('/api/state', { headers: { Accept: 'application/json' } });
     if (!probe.ok) throw new Error();
@@ -1435,7 +1778,9 @@ async function boot() {
     setBackend('local');
   }
   try {
-    state.videos = await store.all();
+    const lib = await store.load();
+    state.videos = lib.videos;
+    state.folders = lib.folders;
   } catch (err) {
     state.videos = [];
     toast('Could not load the library: ' + err.message, 'err');
@@ -1453,8 +1798,10 @@ async function boot() {
       try {
         const res = await fetch('data/videos.example.json');
         if (res.ok) {
-          state.videos = (await res.json()).videos || [];
-          localLib.write({ videos: state.videos });
+          const db = await res.json();
+          state.videos = db.videos || [];
+          state.folders = db.folders || [];
+          localLib.write({ videos: state.videos, folders: state.folders });
         }
       } catch {
         /* offline or file:// — an empty gallery is fine */

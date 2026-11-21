@@ -84,7 +84,34 @@ honours "start at 19:42" for those, so you can see the frame you want.
 - **Tags** with clickable filter chips, plus a source filter and sort options.
 - **Expand**: *fit to screen* hides the chrome around the player (move the mouse to bring it back), and *fullscreen* (`F`) uses the real browser fullscreen.
 - **Playlist-ish navigation**: `←` / `→` in the player move through the current filtered list.
+- **Folders**: group videos into named folders, move them by drag & drop or multi-select, filter by folder.
+- **Group by source**: one toggle clusters the gallery into labelled per-source sections.
 - **Delete** with a confirmation step.
+
+## Folders and source grouping
+
+![Selecting videos and moving them into a folder](docs/screenshot-move.png)
+
+The bar under the toolbar holds **All videos**, **Unfiled** and your folders, each with a
+live count. **New folder** creates one; double-click a folder chip to rename it. Deleting a
+folder (from the move dialog) only unfiles its videos — nothing is ever deleted.
+
+Two ways to move videos:
+
+- **Drag & drop** — drag a card onto a folder chip (or onto *Unfiled*). In selection mode,
+  dragging a selected card moves the whole selection.
+- **Select and move** — the check-square button in the toolbar enters selection mode; click
+  cards (or their checkboxes), then **Move to folder…**. The dialog also creates, renames
+  and deletes folders. `Esc` or **Done** leaves selection mode.
+
+Each video lives in at most one folder; cards in the *All videos* view show a small folder
+badge so you always know where something lives.
+
+![The gallery clustered into per-source sections](docs/screenshot-groups.png)
+
+The layers button (or `G`) switches on **group by source**: the current filtered list is
+clustered into sections — YouTube, Vimeo, archive.org, … — each with a count. It composes
+with folder filters, tag filters, search and both layouts, and the choice is remembered.
 
 ### Keyboard shortcuts
 
@@ -93,6 +120,9 @@ honours "start at 19:42" for those, so you can see the frame you want.
 | `/` | gallery | focus search |
 | `N` | gallery | add a video |
 | `V` | gallery | switch grid / list |
+| `G` | gallery | group by source on / off |
+| `Esc` | selection mode | leave selection mode |
+| drag card → folder chip | gallery | move video (or whole selection) into folder |
 | `Enter` | focused card | open the player |
 | double-click | card or player title | rename |
 | `←` / `→` | player | previous / next video in the current filter |

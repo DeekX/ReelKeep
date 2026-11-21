@@ -1,8 +1,13 @@
 {
   "version": 1,
+  "folders": [
+    { "id": "f_ex0000000001", "name": "Open movies", "createdAt": "2026-11-01T10:00:00.000Z" },
+    { "id": "f_ex0000000002", "name": "Timelapses", "createdAt": "2026-11-01T10:00:00.000Z" }
+  ],
   "videos": [
     {
       "id": "v_ex0000000001",
+      "folderId": "f_ex0000000001",
       "title": "Big Buck Bunny — Official Blender Short Film",
       "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
       "kind": "embed",
@@ -24,6 +29,7 @@
     },
     {
       "id": "v_ex0000000002",
+      "folderId": "",
       "title": "Big Buck Bunny (direct MP4)",
       "url": "https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4",
       "kind": "file",
@@ -45,6 +51,7 @@
     },
     {
       "id": "v_ex0000000003",
+      "folderId": "f_ex0000000002",
       "title": "The Mountain",
       "url": "https://vimeo.com/22439234",
       "kind": "embed",
@@ -66,6 +73,7 @@
     },
     {
       "id": "v_ex0000000004",
+      "folderId": "f_ex0000000001",
       "title": "Sintel — Open Movie by Blender Foundation",
       "url": "https://www.youtube.com/watch?v=eRsGyueVLvQ",
       "kind": "embed",
@@ -87,6 +95,7 @@
     },
     {
       "id": "v_ex0000000005",
+      "folderId": "f_ex0000000001",
       "title": "Big Buck Bunny — Internet Archive item",
       "url": "https://archive.org/details/BigBuckBunny_124",
       "kind": "embed",

@@ -11,10 +11,19 @@ Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `413`,
 
 | Method | Path | Body / query | Response |
 | --- | --- | --- | --- |
-| GET | `/api/state` | — | `{ version, videos: [...] }` |
+| GET | `/api/state` | — | `{ version, videos: [...], folders: [...] }` |
 | POST | `/api/videos` | video record (see below) | `201 { video }` — server assigns `id`, `addedAt` |
 | PATCH | `/api/videos/:id` | partial record | `200 { video }` — `id` cannot change |
 | DELETE | `/api/videos/:id` | — | `200 { ok: true }` — also removes a stored cover in `thumbnails/`, never the uploaded video |
+| POST | `/api/videos/move` | `{ ids: [...], folderId }` (`''` = unfiled) | `200 { moved }` — one atomic write for the whole batch |
+
+## Folders
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| POST | `/api/folders` | `{ name }` (trimmed, ≤ 60 chars) | `201 { folder }` — `{ id, name, createdAt }` |
+| PATCH | `/api/folders/:id` | `{ name }` | `200 { folder }` |
+| DELETE | `/api/folders/:id` | — | `200 { ok: true }` — member videos become unfiled, nothing is deleted |
 
 ## Media and covers
 
@@ -46,6 +55,7 @@ returns `404`.
   "videoId": "aqz-KE-bpKQ", // provider-specific id, else null
   "embedUrl": "",           // manual player-URL override
   "fileUrl": "",            // direct media source, if any
+  "folderId": "",           // folder id, or '' when unfiled
   "tags": ["…"],
   "notes": "…",
   "startAt": 0,             // seconds; playback start point

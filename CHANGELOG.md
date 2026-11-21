@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.2.0] - 2026-11-21
+
+### Added
+- Folders: named collections with live counts, one folder per video, *Unfiled* fallback.
+  Move videos by dragging cards onto folder chips or via selection mode + move dialog;
+  create, rename and delete folders (deleting only unfiles their videos).
+- Group-by-source toggle (`G`): clusters the filtered gallery into labelled per-source
+  sections; composes with folders, tags, search and both layouts; choice remembered.
+- Folder badges on cards in the *All videos* view; selection mode with checkboxes.
+- API: `POST /api/folders`, `PATCH`/`DELETE /api/folders/:id`, `POST /api/videos/move`
+  (atomic batch), `folders` in `/api/state`, `folderId` on video records.
+- Example library ships two folders; README gains folder/grouping docs and two screenshots.
+
 ## [1.1.0] - 2026-11-21
 
 ### Added

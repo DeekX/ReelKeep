@@ -150,6 +150,34 @@ test('rejects unusable enrich and media targets', async () => {
   assert.equal((await get('/api/nope')).status, 404);
 });
 
+test('folders: create, rename, bulk move, delete unfiles', async () => {
+  const before = await (await get('/api/state')).json();
+  const created = await json('/api/folders', 'POST', { name: '  Watch later  ' });
+  assert.equal(created.status, 201);
+  const { folder } = await created.json();
+  assert.equal(folder.name, 'Watch later');
+  assert.match(folder.id, /^f_/);
+  assert.equal((await json('/api/folders', 'POST', { name: '   ' })).status, 400);
+
+  const state = await (await get('/api/state')).json();
+  const ids = state.videos.slice(0, 2).map((v) => v.id);
+  const moved = await json('/api/videos/move', 'POST', { ids, folderId: folder.id });
+  assert.equal(moved.status, 200);
+  assert.equal((await moved.json()).moved, 2);
+  assert.equal((await json('/api/videos/move', 'POST', { ids, folderId: 'f_nope' })).status, 404);
+
+  const renamed = await json(`/api/folders/${folder.id}`, 'PATCH', { name: 'Later' });
+  assert.equal((await renamed.json()).folder.name, 'Later');
+
+  const after = await (await get('/api/state')).json();
+  assert.equal(after.videos.filter((v) => v.folderId === folder.id).length, 2);
+
+  assert.equal((await fetch(`${base}/api/folders/${folder.id}`, { method: 'DELETE' })).status, 200);
+  const final = await (await get('/api/state')).json();
+  assert.equal(final.folders.length, before.folders.length);
+  assert.ok(final.videos.filter((v) => ids.includes(v.id)).every((v) => !v.folderId));
+});
+
 test('a corrupt library file is quarantined, not fatal', async () => {
   await fsp.writeFile(path.join(dir, 'data', 'videos.json'), '{ this is not json');
   const res = await get('/api/state');
