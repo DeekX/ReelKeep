@@ -1,0 +1,15 @@
+# Personal library and media — never publish these
+data/videos.json
+data/videos.json.*
+videos/
+thumbnails/
+
+# Local tooling / runtime
+.qwen/
+node_modules/
+*.log
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
