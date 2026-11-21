@@ -623,6 +623,8 @@ function render() {
   const tokens = state.tokens;
   const list = visibleVideos();
   $('#grid').innerHTML = list.map((v) => cardHtml(v, tokens)).join('');
+  // an empty flex:1 grid would eat the free space and push #empty to the footer
+  $('#grid').hidden = list.length === 0;
   $('#count').textContent = `${state.videos.length} video${state.videos.length === 1 ? '' : 's'}` + (tokens.length || state.tags.size || state.provider ? ` · ${list.length} shown` : '');
   const empty = $('#empty');
   empty.hidden = list.length > 0;
