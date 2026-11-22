@@ -1,3 +1,4 @@
+# Browser-only demo (browser-storage mode); full experience needs `node server.js`.
 name: Deploy demo
 
 on:
