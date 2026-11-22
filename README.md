@@ -88,6 +88,8 @@ honours "start at 19:42" for those, so you can see the frame you want.
 - **Group by source**: one toggle clusters the gallery into labelled per-source sections.
 - **Delete** with a confirmation step.
 
+![List view: a hairline-separated ledger with mono metadata](docs/screenshot-list.png)
+
 ## Folders and source grouping
 
 ![Selecting videos and moving them into a folder](docs/screenshot-move.png)

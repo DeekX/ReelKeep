@@ -118,6 +118,12 @@ try {
   await sleep(700); // let the card entrance animation settle
   await shoot('screenshot-grid.png');
 
+  await evaluate(`applyView('list')`);
+  await sleep(500);
+  await shoot('screenshot-list.png');
+  await evaluate(`applyView('grid')`);
+  await sleep(300);
+
   // The built-in file player, mid-film, with its chrome visible.
   await evaluate(`openPlayer('v_ex0000000002')`);
   await waitFor(

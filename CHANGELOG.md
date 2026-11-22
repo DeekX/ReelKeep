@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.4.0] - 2026-11-22
+
+### Changed
+- Visual identity pass ("screening room"): squared 6px/4px corners instead of pillowy
+  radii and pill chips; flat hairline surfaces with no card shadows, lift or thumbnail
+  zoom; broadcast-blue accent replaces startup indigo; monospace voice for the wordmark,
+  counts, timestamps, hosts, tags and micro-labels; contact-sheet grid and hairline
+  ledger list; slate section rules; left-aligned editorial empty states; 120ms
+  colour-only motion; outline-based focus rings; Firefox scrollbar parity.
+- `docs/ui-brief.md` restored and rewritten as a prescriptive identity handoff (the old
+  constraints-only brief made every agent converge on the same generic look).
+
+### Added
+- `docs/screenshot-list.png` and a list-view capture step in `scripts/screenshot.mjs`.
+
 ## [1.3.0] - 2026-11-21
 
 ### Added
