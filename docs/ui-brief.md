@@ -63,12 +63,13 @@ The product is a personal cinema archive, not a SaaS dashboard. The visual langu
 a **screening-room console**: contact-sheet grid, ledger list, slate metadata, broadcast
 blue. Execute these decisions exactly:
 
-1. **Corner language:** squared, not pillowy. Cards/panels `6px`, controls/chips/inputs
+1. **Corner language:** squared, not pillowy. Cards/panels `8px`, controls/chips/inputs
    `4px`, dialogs `8px`. **No pill shapes anywhere** except the circular status dot and
    the play disc. No `border-radius: 999px`.
 2. **Depth:** flat. Hairline `1px` borders on surfaces; **no shadows on cards or rows**;
-   shadows only on floating layers (dialogs, toasts). Hover = border/background colour
-   shift. **No lift (`translateY`), no scale, no zoom on thumbnails.**
+   shadows only on floating layers (dialogs, toasts). Hover = accent-tinted border +
+   background colour shift (clear click affordance, still flat). **No lift
+   (`translateY`), no scale, no zoom on thumbnails.**
 3. **Type voice:** two registers. Sans (system stack) for titles and prose; **monospace
    for everything technical**: brand wordmark, counts, durations, timestamps, hosts,
    tags, folder badges, kinds, kbd, footer, micro-labels. Micro-labels are uppercase
@@ -84,13 +85,14 @@ blue. Execute these decisions exactly:
    under them; slate strip below (sans title, mono meta row with squared tag chips).
    Badge = mono micro-label top-start; duration stamp = mono tabular bottom-end.
 7. **List = ledger:** full-width hairline-separated rows, no card boxes, small framed
-   thumb at row start, one-line title + one-line note + mono meta. Row hover = flat
-   background tint. Selection = inset accent rule at row start.
+   thumb at row start, two-line title (15px) + two-line note + mono meta — the ledger
+   keeps the old list view's information richness. Row hover = flat background tint +
+   accent-tinted separator. Selection = inset accent rule at row start.
 8. **Section heads = slates:** full-span rule with uppercase mono label left, mono count
    right (group-by-source, and the empty-state top rule).
 9. **Empty states = editorial:** left-aligned copy under a top hairline rule, small dim
-   icon, restrained CTA; block centred in the free space but content left-aligned.
-   Never a centred icon-hero.
+   icon, restrained CTA; a settled block (max-width 480px) centred in the free space
+   with left-aligned content. Never a centred icon-hero.
 10. **Motion signature:** colour/border/opacity only, `120ms` ease-out (`--speed`).
     Entrance = opacity fade only. Dialogs fade in. `prefers-reduced-motion` kills all.
 11. **Focus:** real `outline: 2px solid accent; outline-offset: 2px` (inset on cards and
@@ -122,14 +124,15 @@ Dark theme only. A light theme is a stretch goal only if it obeys the same ident
 | `--danger` | `#ff7b72` | destructive |
 | `--ok` | `#3fb950` | live-storage dot |
 | `--warn` | `#d29922` | browser-only dot |
-| `--radius` / `--radius-s` | `6px` / `4px` | surfaces / controls |
+| `--radius` / `--radius-s` | `8px` / `4px` | surfaces / controls |
 | `--shadow` | `0 16px 40px -18px rgba(0,0,0,.9)` | floating layers only |
 | `--font` | system sans + Noto fallbacks (ar/hi/zh/ja/ko) | titles, prose |
 | `--mono` | `ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono", monospace` | slates |
 | `--speed` | `120ms` | all transitions |
 
 Every colour/radius/shadow must come from tokens; never hardcode mid-rule.
-Type scale: body 13, card title 13 (list 14), dialog h2 15, micro 10–11 mono, help 11.5.
+Type scale: body 13, card title 13 (list 15), dialog h2 15, micro 10–11 mono, meta slates
+11 mono in `--muted` (not `--dim` — legibility), help 11.5.
 
 ---
 

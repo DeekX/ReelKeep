@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format follows
   colour-only motion; outline-based focus rings; Firefox scrollbar parity.
 - `docs/ui-brief.md` restored and rewritten as a prescriptive identity handoff (the old
   constraints-only brief made every agent converge on the same generic look).
+- Refinements merging the previous design's strengths into the new identity: meta
+  slates 11px in `--muted` for legibility; ledger rows keep two-line titles (15px) and
+  two-line notes; card corners softened to 8px (controls stay 4px); accent-tinted hover
+  borders for click affordance without lift; larger play disc, badge and stamp; empty
+  state settled at 480px max-width.
 
 ### Added
 - `docs/screenshot-list.png` and a list-view capture step in `scripts/screenshot.mjs`.
