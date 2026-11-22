@@ -169,6 +169,16 @@ function absUrl(value, base) {
   }
 }
 
+/** ISO-8601 (PT10M35S, PT1H2M3S, P1DT…) or plain seconds → seconds */
+function parseDuration(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(Number(s));
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?)?$/i.exec(s);
+  if (!m || (!m[1] && !m[2] && !m[3] && !m[4])) return null;
+  return Math.round((+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + parseFloat(m[4] || 0));
+}
+
 async function enrich(target) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
@@ -236,6 +246,29 @@ async function enrich(target) {
       html.match(/"contentUrl"\s*:\s*"(https?:\/\/[^"]+\.(?:mp4|webm|ogv)[^"]*)"/i)?.[1],
     ].filter(Boolean).map((u) => absUrl(u.replace(/\\\//g, '/'), finalUrl));
 
+    let duration = parseDuration(
+      metaTag(html, 'itemprop', 'duration') ||
+        metaTag(html, 'property', 'og:video:duration') ||
+        metaTag(html, 'property', 'video:duration') ||
+        html.match(/"duration"\s*:\s*"(P[^"]+)"/i)?.[1] ||
+        html.match(/"duration"\s*:\s*(\d+(?:\.\d+)?)\s*[,}]/)?.[1],
+    );
+    // Vimeo pages expose no duration meta; its oEmbed API does
+    if (!duration) {
+      try {
+        const host = new URL(finalUrl).hostname;
+        if (/(^|\.)vimeo\.com$/.test(host)) {
+          const oe = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(finalUrl)}`, {
+            signal: controller.signal,
+            headers: { 'User-Agent': UA },
+          });
+          if (oe.ok) duration = parseDuration((await oe.json()).duration);
+        }
+      } catch {
+        /* oEmbed unavailable — the stamp stays absent, honestly */
+      }
+    }
+
     const linkIcon = html.match(
       /<link[^>]+rel\s*=\s*["'](?:icon|apple-touch-icon|shortcut icon)["'][^>]*>/i,
     )?.[0];
@@ -259,6 +292,7 @@ async function enrich(target) {
       mediaUrl: videoCandidates.find((u) => /\.(mp4|webm|ogv|mov|m4v|mp3)(\?|$)/i.test(u)) || null,
       embedPageUrl: videoCandidates.find((u) => !/\.(mp4|webm|ogv|mov|m4v|mp3)(\?|$)/i.test(u)) || null,
       isVideoPage: /video|movie/i.test(metaTag(html, 'property', 'og:type') || ''),
+      duration,
       direct: false,
     };
   } finally {

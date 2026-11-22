@@ -21,6 +21,12 @@ All notable changes to this project are documented here. The format follows
   (Capture a frame / Use an image), custom scrubber with accent elapsed fill,
   ±1s stepping around a precise mono time input, toggle switch for start-at-frame.
 - Chunked rendering with "Showing N of M / Load more" for large libraries.
+- Duration on cards for link-added videos: `/api/enrich` now parses ISO-8601
+  (`itemprop="duration"`, JSON-LD) and seconds (`og:video:duration`, `video:duration`)
+  page metadata; the add dialog shows it in the detected-preview subline and stores it;
+  existing embeds without a duration are backfilled lazily at boot (4 at a time).
+  Vimeo falls back to its oEmbed API (its pages expose no duration meta).
+  Sites that expose no duration still show no stamp — honestly.
 - Mobile: compact topbar with overflow menu for organization controls, square add
   button in the heading, horizontally scrollable folder row, single-column gallery.
 - Toggle-switch styling for all boolean switches; warm-grey Figma neutral palette
@@ -31,6 +37,8 @@ All notable changes to this project are documented here. The format follows
 - Latent translator shadowing bugs (`const t = …` inside `openThumbPicker`'s error
   handler and `seekFromInput`) that would throw on frame-read failure / invalid time.
 - Add-dialog tab handler no longer toggles the picker's source tabs (scoped selectors).
+- Add-dialog method tabs (Link / Embed code / Upload file) now share equal thirds of
+  the dialog width instead of packing left at content size.
 
 ### Kept (deliberately not adopted from Figma)
 - Broadcast-blue accent with dark text (Figma's `#7278E8` + white fails AA and is the

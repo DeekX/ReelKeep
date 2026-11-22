@@ -174,8 +174,11 @@ Type scale: body 13, card title 13 (list 15), dialog h2 15, micro 10–11 mono, 
   bottom-end; hover play scrim + flat accent disc; hover edit/delete tiles
   (`.card-actions`); select-mode checkbox tile (`.card-select`) + `.selected` inset ring;
   body: 2-line title (dbl-click inline rename `.rename`; search hits `<mark>`), notes
-  (list only), mono meta row: `.fold` folder badge, squared `.t` tags, host, rel date,
-  start time. Entrance: opacity fade. Hover: colour only.
+  (list only), mono meta row: `.fold` folder badge, squared `.t` tags, host, rel date
+  (right-aligned), start time. Entrance: opacity fade. Hover: colour only. The stamp
+  shows duration when known: parsed at add time from page metadata (`itemprop`/`og`/
+  JSON-LD) or Vimeo oEmbed, reported by the file player, or backfilled at boot for up to
+  4 embeds; absent when the site exposes none.
 - **Empty states** (`#empty`): editorial per §2.9; two variants (empty / no matches);
   stays vertically centred in free space.
 - **Dropzone** (`#dropzone`): full-screen dashed accent overlay, uppercase mono copy.
@@ -190,8 +193,12 @@ Foot: mono meta chips + remember-start switch (file sources). **Fit mode**
 `::backdrop` for the lightbox.
 
 ### 4.3 Dialogs (native `<dialog>`, 8px radius, hairline head/foot rules)
-- **Add** (`#addDialog`): tabs Link/Embed/Upload; panels; live preview (`.preview-thumb`
-  + fields + use-og switch); status line (`#addStatus` busy/ok/err); Cancel / Add.
+- **Add** (`#addDialog`, 600px): subtitle microcopy; method tabs Link/Embed/Upload
+  sharing **equal thirds** of the dialog width (`.tabs .tab { flex: 1 }`; the picker's
+  `.tp-sources` tabs stay content-sized); panels; detected-preview row (cover + title +
+  source + green "Video details found"); Title, Folder + Start row, Tags/Notes with
+  right-aligned hints; use-og toggle; footer status line + privacy microcopy +
+  Cancel / Add.
 - **Edit** (`#editDialog`): `.preview-thumb.lg` (image **absolutely fills**, object-fit
   cover — keep), fields, `<details class="adv">` (mono uppercase summary), thumb action
   row, Delete/Cancel/Save.

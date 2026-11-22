@@ -1075,7 +1075,12 @@ const enrich = debounce(async (raw) => {
       draft.title = clean;
       $('#pvTitle').value = clean;
     }
-    setDetected(clean || draft.title || hostOf(u.href), `${providerLabel(draft)}${draft.site ? ' · ' + draft.site : ''}`, true);
+    if (meta.duration) draft.duration = meta.duration;
+    setDetected(
+      clean || draft.title || hostOf(u.href),
+      `${providerLabel(draft)}${draft.site ? ' · ' + draft.site : ''}${draft.duration ? ' · ' + fmtTime(draft.duration) : ''}`,
+      true,
+    );
     if (found.kind === 'page' && meta.mediaUrl) {
       draft.kind = 'file';
       draft.provider = 'file';
@@ -1448,6 +1453,22 @@ $('#tpUpload').addEventListener('change', async (e) => {
   await setThumbnail(id, saved, 'upload');
   if (thumbDialog.open) thumbDialog.close();
 });
+
+/* embeds cannot report duration from inside a cross-origin iframe; backfill it
+   from the page metadata (itemprop/og/JSON-LD duration) for a few at a time */
+async function autoDuration(v) {
+  if (state.backend !== 'remote' || v.duration || v.kind === 'file') return;
+  try {
+    const meta = await (await fetch('/api/enrich?url=' + encodeURIComponent(v.url))).json();
+    const cur = byId(v.id);
+    if (meta.duration && cur && !cur.duration) {
+      await patch(v.id, { duration: meta.duration }, false);
+      render();
+    }
+  } catch {
+    /* site exposes no duration — the stamp stays absent, honestly */
+  }
+}
 
 /* capture a sensible first thumbnail for uploaded / direct video files */
 async function autoThumbnail(v) {
@@ -1964,6 +1985,8 @@ async function boot() {
   // give playable videos without a cover their default frame (the opening shot)
   const missing = state.videos.filter((v) => !v.thumbnail && v.kind === 'file').slice(0, 4);
   missing.forEach((v, i) => setTimeout(() => autoThumbnail(v), 400 + i * 700));
+  const noDur = state.videos.filter((v) => !v.duration && v.kind !== 'file').slice(0, 4);
+  noDur.forEach((v, i) => setTimeout(() => autoDuration(v), 800 + i * 900));
 }
 
 boot();
