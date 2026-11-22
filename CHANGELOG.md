@@ -23,6 +23,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 - `docs/screenshot-list.png` and a list-view capture step in `scripts/screenshot.mjs`.
+- Drag ergonomics: while dragging, the folder bar becomes a fixed bottom dock of large
+  (46px) drop targets reachable at any scroll position; the drag image is a compact
+  mono ghost placed above the pointer so the target under the cursor stays visible;
+  hot target is a solid accent fill; gallery dims during drag; folder chips larger at
+  rest. `docs/screenshot-drag.png` documents the mid-drag state.
 
 ## [1.3.0] - 2026-11-21
 

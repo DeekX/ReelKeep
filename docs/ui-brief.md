@@ -144,8 +144,13 @@ Type scale: body 13, card title 13 (list 15), dialog h2 15, micro 10–11 mono, 
   grid/list segmented (`#viewGrid`/`#viewList`), sort/source/language custom-chevron
   `<select>`s (`#sortSel`, `#providerSel`, `#langSel`), primary **Add video** (`#addBtn`).
 - **Folder bar** (`#folderbar`): squared chips *All videos*, *Unfiled*, folders (icon +
-  name + mono count), dashed *New folder*. **Drop targets**: while dragging, all folder
-  chips outline dashed (`body.drag-ids`); hovered chip = `.hot` solid accent.
+  name + mono count), dashed *New folder*; folder chips are comfortable at rest
+  (6px/12px padding, 12.5px). **Drop targets**: while dragging (`body.drag-ids`) the bar
+  becomes a **fixed bottom dock** of large targets (46px min-height, 13.5px type, dashed
+  accent outlines; *All videos* and *New folder* hidden), reachable at any scroll
+  position; the gallery and tag bar dim to 0.55. Hovered chip = `.hot` **solid accent
+  fill with dark text**. The drag image is a compact mono ghost (`#dragGhost`,
+  `setDragImage` offset above the pointer) so the target under the cursor stays visible.
   Double-click renames.
 - **Folder action bar** (`#folderActions`, folder open): icon, name, mono count, spacer,
   **Empty folder** / **Rename** / **Delete folder** (danger).
@@ -207,7 +212,7 @@ Keep austere.
   tpVideo, tpCanvas, tpTime, tpRange, tpOut, tpAlsoStart, tpStepB, tpStepF, tpGrab,
   tpProvider, tpFrames, tpBlocked, tpUpload, tpUrl, tpUseUrl, tpReset, moveDialog,
   moveForm, mvList, mvNew, mvCreate, confirmDialog, cfTitle, cfText, cfOk, toasts,
-  backend, tip`.
+  backend, tip, dragGhost`.
 - Data attributes: `data-act` (edit/del/rename/select), `data-lb`
   (close/fit/full/thumb/edit/open/prev/next), `data-tab`/`data-panel` (link/embed/upload),
   `data-folder`, `data-newfolder`, `data-mv`, `data-mv-edit`, `data-mv-del`, `data-close`,
@@ -265,6 +270,7 @@ Regenerate with `npm run screenshot` (server running; Node 22+; Chrome/Edge;
 | `docs/screenshot-frames.png` | frame-accurate thumbnail picker |
 | `docs/screenshot-groups.png` | group-by-source slates |
 | `docs/screenshot-move.png` | selection mode + move dialog |
+| `docs/screenshot-drag.png` | mid-drag bottom drop-dock with hot target |
 | `docs/screenshot-rtl.png` | full Arabic RTL gallery |
 
 ---

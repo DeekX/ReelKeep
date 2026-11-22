@@ -154,6 +154,22 @@ try {
   await sleep(400);
   await shoot('screenshot-move.png');
 
+  // Mid-drag: bottom drop-dock with large targets and a solid hot chip.
+  await evaluate(`(() => {
+    moveDialog.close(); setSelecting(false);
+    const card = document.querySelector('.card[data-id="v_ex0000000002"]');
+    const chip = document.querySelector('#folderbar [data-folder="f_ex0000000002"]');
+    const dt = new DataTransfer();
+    card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    chip.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: dt }));
+    chip.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    window.__dragCard = card; window.__dragDt = dt;
+  })()`);
+  await sleep(400);
+  await shoot('screenshot-drag.png');
+  await evaluate(`window.__dragCard.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: window.__dragDt }))`);
+  await sleep(300);
+
   // Right-to-left layout, for the README languages section.
   await evaluate(`moveDialog.close(); setSelecting(false); setLocale('ar')`);
   await sleep(700);

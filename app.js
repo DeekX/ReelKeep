@@ -1455,14 +1455,21 @@ $('#grid').addEventListener('dragstart', (e) => {
   const ids = state.selecting && state.selected.has(id) ? [...state.selected] : [id];
   e.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids));
   e.dataTransfer.effectAllowed = 'move';
+  // compact ghost parked ABOVE the pointer: the drop target under the cursor stays visible
+  const ghost = $('#dragGhost');
+  const label = ids.length > 1 ? t('count.other', { n: ids.length }) : byId(id)?.title || t('card.untitled');
+  ghost.innerHTML = `<svg><use href="#i-folder" /></svg><span>${esc(label)}</span>`;
+  e.dataTransfer.setDragImage(ghost, Math.round(ghost.offsetWidth / 2), ghost.offsetHeight + 14);
   document.body.classList.add('drag-ids');
   requestAnimationFrame(() => card.classList.add('dragging'));
 });
-$('#grid').addEventListener('dragend', () => {
+function endDrag() {
   document.body.classList.remove('drag-ids');
+  $('#dragGhost').innerHTML = '';
   $$('.card.dragging').forEach((c) => c.classList.remove('dragging'));
   $$('.chip.hot').forEach((c) => c.classList.remove('hot'));
-});
+}
+$('#grid').addEventListener('dragend', endDrag);
 
 async function moveIds(ids, folderId) {
   try {
@@ -1472,6 +1479,8 @@ async function moveIds(ids, folderId) {
     });
     ids.forEach((id) => state.selected.delete(id));
     render();
+    // render() detaches the dragged card, so native dragend may never reach #grid
+    endDrag();
     const name = state.folders.find((f) => f.id === folderId)?.name || t('folder.unfiled');
     toast(t('move.moved', { n: t(n === 1 ? 'count.one' : 'count.other', { n }), name }), 'ok', 2200);
   } catch (err) {
