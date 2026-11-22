@@ -1985,8 +1985,20 @@ async function boot() {
   // give playable videos without a cover their default frame (the opening shot)
   const missing = state.videos.filter((v) => !v.thumbnail && v.kind === 'file').slice(0, 4);
   missing.forEach((v, i) => setTimeout(() => autoThumbnail(v), 400 + i * 700));
-  const noDur = state.videos.filter((v) => !v.duration && v.kind !== 'file').slice(0, 4);
-  noDur.forEach((v, i) => setTimeout(() => autoDuration(v), 800 + i * 900));
+  startDurationBackfill();
+}
+
+/* fill missing embed durations across the WHOLE library, two at a time, so large
+   libraries don't need one reload per four videos; each patch persists as it lands */
+function startDurationBackfill() {
+  if (state.backend !== 'remote') return;
+  const queue = state.videos.filter((v) => !v.duration && v.kind !== 'file');
+  let i = 0;
+  const worker = async () => {
+    while (i < queue.length) await autoDuration(queue[i++]);
+  };
+  setTimeout(worker, 800);
+  setTimeout(worker, 1400);
 }
 
 boot();

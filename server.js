@@ -190,6 +190,9 @@ async function enrich(target) {
         'User-Agent': UA,
         Accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
         'Accept-Language': 'en',
+        // bypass EU consent walls that otherwise return a cookie-less shell page
+        Cookie: 'CONSENT=YES+1; SOCS=CAI',
+        'Accept-Language': 'en-US,en;q=0.9',
       },
     });
     const type = res.headers.get('content-type') || '';
@@ -214,7 +217,15 @@ async function enrich(target) {
       if (done) break;
       html += decoder.decode(value, { stream: true });
       bytes += value.length;
-      if (/>$/.test(html) && /<\/head>/i.test(html) && /og:image|twitter:image/i.test(html)) break;
+      // stop early only once head metadata AND a duration marker are present;
+      // YouTube keeps duration in body JSON (lengthSeconds), past </head>
+      if (
+        />$/.test(html) &&
+        /<\/head>/i.test(html) &&
+        /og:image|twitter:image/i.test(html) &&
+        /duration|lengthSeconds/i.test(html)
+      )
+        break;
     }
     try {
       reader.cancel();
@@ -251,8 +262,13 @@ async function enrich(target) {
         metaTag(html, 'property', 'og:video:duration') ||
         metaTag(html, 'property', 'video:duration') ||
         html.match(/"duration"\s*:\s*"(P[^"]+)"/i)?.[1] ||
-        html.match(/"duration"\s*:\s*(\d+(?:\.\d+)?)\s*[,}]/)?.[1],
+        html.match(/"duration"\s*:\s*(\d+(?:\.\d+)?)\s*[,}]/)?.[1] ||
+        html.match(/"lengthSeconds"\s*:\s*"(\d+)"/)?.[1],
     );
+    if (!duration) {
+      const ms = html.match(/"approxDurationMs"\s*:\s*"(\d+)"/)?.[1];
+      if (ms) duration = Math.round(Number(ms) / 1000);
+    }
     // Vimeo pages expose no duration meta; its oEmbed API does
     if (!duration) {
       try {
