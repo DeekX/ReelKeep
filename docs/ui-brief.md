@@ -63,9 +63,10 @@ The product is a personal cinema archive, not a SaaS dashboard. The visual langu
 a **screening-room console**: contact-sheet grid, ledger list, slate metadata, broadcast
 blue. Execute these decisions exactly:
 
-1. **Corner language:** squared, not pillowy. Cards/panels `8px`, controls/chips/inputs
-   `4px`, dialogs `8px`. **No pill shapes anywhere** except the circular status dot and
-   the play disc. No `border-radius: 999px`.
+1. **Corner language:** squared, not pillowy. Cards `8px`, controls/chips/inputs `6–7px`,
+   dialogs `12px`. **No pill shapes anywhere** except the circular status dot, the play
+   disc, the toggle track and the circular player edge-nav. No `border-radius: 999px`
+   on rectangles.
 2. **Depth:** flat. Hairline `1px` borders on surfaces; **no shadows on cards or rows**;
    shadows only on floating layers (dialogs, toasts). Hover = accent-tinted border +
    background colour shift (clear click affordance, still flat). **No lift
@@ -97,10 +98,20 @@ blue. Execute these decisions exactly:
     Entrance = opacity fade only. Dialogs fade in. `prefers-reduced-motion` kills all.
 11. **Focus:** real `outline: 2px solid accent; outline-offset: 2px` (inset on cards and
     chips so `overflow: hidden` cannot clip it). Never a clipped box-shadow ring.
-12. **Forbidden (owner's standing rule):** gradients, glassmorphism/`backdrop-filter`,
-    emoji in UI, decorative clutter, neon multi-accent, hero typography in app chrome,
-    and the generic AI-dashboard palette (indigo `#5e6ad2`-family on `#0d1117` with
-    pillowy cards). If a change makes it look like a template, revert it.
+12. **Forbidden (owner's standing rule):** decorative gradients, glassmorphism/
+    `backdrop-filter`, emoji in UI, decorative clutter, neon multi-accent, hero
+    typography in app chrome, and the generic AI-dashboard palette (indigo
+    `#5e6ad2`/`#7278E8`-family with white text and pillowy cards). If a change makes it
+    look like a template, revert it. The scrubber's accent elapsed fill is *functional
+    progress*, the only permitted gradient.
+13. **Product voice:** short human microcopy, never marketing-speak: heading tagline
+    ("Good videos. Kept close."), add-dialog subtitle ("A good find deserves a place in
+    your library.") and privacy line ("Only you. Only your library."). All such strings
+    live in i18n keys, in every locale.
+14. **Information architecture:** slim topbar (brand, search, storage status, language,
+    add) + a page heading row ("Your library" + count + tagline) carrying the
+    organization controls (Select, Group, view toggle, sort, source) as **labeled**
+    buttons, not icon-only. Mobile collapses those controls into an overflow menu.
 
 Dark theme only. A light theme is a stretch goal only if it obeys the same identity.
 
@@ -110,21 +121,22 @@ Dark theme only. A light theme is a stretch goal only if it obeys the same ident
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--bg` | `#080a0d` | page background |
-| `--bg-2` | `#0d1117` | inputs, inset wells, ledger hover base |
-| `--panel` | `#10141a` | cards, dialogs |
-| `--panel-2` | `#161b22` | raised controls, hover fills |
-| `--line` | `#262c36` | control borders |
-| `--line-soft` | `#1b2027` | hairlines: rows, sections, card edges |
-| `--text` | `#e6edf3` | primary text |
-| `--muted` | `#9198a1` | secondary text |
-| `--dim` | `#6e7681` | tertiary/meta |
-| `--accent` | `#58a6ff` | the single accent |
+| `--bg` / `--bg-2` | `#101113` | page background and inset wells (inputs, tabs) |
+| `--panel` | `#18191d` | topbar, cards, dialogs, dock |
+| `--panel-2` | `#222329` | raised controls, active tabs, neutral chips |
+| `--badge` | `#17181c` | cover badges and stamps |
+| `--stage` | `#09090a` | player surround and frame-preview well |
+| `--line` | `#2c2e35` | control borders |
+| `--line-soft` | `#23252c` | hairlines: rows, sections |
+| `--text` | `#f1f1f3` | primary text |
+| `--muted` | `#a1a3ad` | secondary text |
+| `--dim` | `#858894` | tertiary/meta (AA on panel) |
+| `--accent` | `#58a6ff` | the single accent; dark text `#081018` on it |
 | `--accent-soft` | `#a5d6ff` | accent-tinted text |
 | `--danger` | `#ff7b72` | destructive |
-| `--ok` | `#3fb950` | live-storage dot |
+| `--ok` | `#73bd95` | live-storage dot, detected-status |
 | `--warn` | `#d29922` | browser-only dot |
-| `--radius` / `--radius-s` | `8px` / `4px` | surfaces / controls |
+| `--radius` / `--radius-s` / `--radius-d` | `8px` / `6px` / `12px` | cards / controls / dialogs |
 | `--shadow` | `0 16px 40px -18px rgba(0,0,0,.9)` | floating layers only |
 | `--font` | system sans + Noto fallbacks (ar/hi/zh/ja/ko) | titles, prose |
 | `--mono` | `ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono", monospace` | slates |
@@ -271,6 +283,8 @@ Regenerate with `npm run screenshot` (server running; Node 22+; Chrome/Edge;
 | `docs/screenshot-groups.png` | group-by-source slates |
 | `docs/screenshot-move.png` | selection mode + move dialog |
 | `docs/screenshot-drag.png` | mid-drag bottom drop-dock with hot target |
+| `docs/screenshot-add.png` | add dialog: subtitle, tabs, folder field, hints, privacy line |
+| `docs/screenshot-mobile.png` | 376px layout: overflow menu, square add, scrollable folders |
 | `docs/screenshot-rtl.png` | full Arabic RTL gallery |
 
 ---
@@ -280,17 +294,17 @@ Regenerate with `npm run screenshot` (server running; Node 22+; Chrome/Edge;
 Verified weak spots left after the 1.4.0 identity pass:
 
 1. **Loading states:** no skeletons; covers pop in over a static placeholder well.
-2. **Topbar at 700–1100px:** seven controls still wrap; consider an overflow menu for
-   sort/source/language (keep keyboard a11y and the selects' ids).
-3. **Card meta row** wraps to two lines with long folder names + tags; consider hiding
+2. **Card meta row** wraps to two lines with long folder names + tags; consider hiding
    overflow tags behind a `+n` slate.
-4. **Provider frame grid** tiles have no loading/failed state beyond removal.
-5. **Fit mode** has no affordance hinting the hidden chrome exists.
-6. **No visual distinction** between uploaded local files and remote links beyond badge
+3. **Provider frame grid** tiles have no loading/failed state beyond removal.
+4. **Fit mode** has no affordance hinting the hidden chrome exists.
+5. **No visual distinction** between uploaded local files and remote links beyond badge
    text (a mono `LOCAL` slate would fit the identity).
-7. **Toast stack** can cover the footer at very short viewports.
-8. List-view **column alignment** is per-row flex, not a true shared grid; long titles
+6. **Toast stack** can cover the footer at very short viewports.
+7. List-view **column alignment** is per-row flex, not a true shared grid; long titles
    and meta don't align across rows. A shared column template would tighten the ledger.
+8. **Mobile folder row** scrolls horizontally with no overflow indicator; a fade or
+   chevron affordance would signal more folders.
 
 Fix within the constraints; document anything deliberately left.
 

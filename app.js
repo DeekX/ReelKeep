@@ -391,6 +391,7 @@ const state = {
   group: false, // cluster cards into per-source sections
   selecting: false,
   selected: new Set(),
+  limit: 60, // rendered cards; "Load more" raises it
   backend: 'remote', // or 'local'
   current: null, // video open in lightbox
   lastTime: 0,
@@ -437,8 +438,12 @@ document.addEventListener('reelkeep:locale', () => {
   render();
   setBackend(state.backend);
   if (editDialog.open && editing) openEdit(editing.id);
-  if (lb.open && state.current) paintLbMeta(state.current);
+  if (lb.open && state.current) {
+    paintLbMeta(state.current);
+    paintLbDetails(state.current);
+  }
   if (moveDialog.open) paintMoveList();
+  if (!$('#pvStatus').hidden) $('#pvStatusText').textContent = t('add.preview.ok');
 });
 
 const LS_KEY = 'video-gallery.v1';
@@ -699,7 +704,7 @@ function cardHtml(v, tokens) {
     <div class="card-body">
       <h3 class="card-title" data-act="rename" title="${esc(t('lb.rename'))}">${highlight(v.title || t('card.untitled'), tokens)}</h3>
       ${v.notes ? `<p class="card-notes">${esc(v.notes)}</p>` : ''}
-      <div class="card-sub">${fold}${tags}<span class="host">${esc(hostOf(v.url) || t('card.local'))}</span><span>· ${esc(relDate(v.addedAt))}</span>${v.startAt ? `<span>· ${esc(t('card.starts', { t: fmtTime(v.startAt) }))}</span>` : ''}</div>
+      <div class="card-sub">${fold}${tags}<span class="host">${esc(hostOf(v.url) || t('card.local'))}</span>${v.startAt ? `<span>· ${esc(t('card.starts', { t: fmtTime(v.startAt) }))}</span>` : ''}<span class="when">${esc(relDate(v.addedAt))}</span></div>
     </div>
   </article>`;
 }
@@ -708,10 +713,13 @@ function renderTagbar() {
   const counts = new Map();
   state.videos.forEach((v) => (v.tags || []).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
   const bar = $('#tagbar');
-  bar.innerHTML = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([t, n]) => `<button class="chip${state.tags.has(t) ? ' on' : ''}" data-tag="${esc(t)}">#${esc(t)}<small>${n}</small></button>`)
-    .join('');
+  bar.innerHTML =
+    `<span class="tagbar-label">${esc(t('tags.label'))}</span>` +
+    `<button class="chip${state.tags.size ? '' : ' on'}" data-tagreset="1">${esc(t('tags.all'))}</button>` +
+    [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag, n]) => `<button class="chip${state.tags.has(tag) ? ' on' : ''}" data-tag="${esc(tag)}">#${esc(tag)}<small>${n}</small></button>`)
+      .join('');
 }
 
 function renderProviders() {
@@ -732,6 +740,8 @@ const groupKey = (v) => (v.provider === 'page' || v.provider === 'custom' ? host
 function render() {
   const tokens = state.tokens;
   const list = visibleVideos();
+  // chunked rendering: large libraries stay responsive, "Load more" appends
+  const shown = list.slice(0, state.limit);
   let html;
   if (state.group) {
     const groups = new Map();
@@ -740,18 +750,27 @@ function render() {
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(v);
     });
+    let budget = state.limit;
     html = [...groups.values()]
       .sort((a, b) => providerLabel(a[0]).localeCompare(providerLabel(b[0])))
-      .map(
-        (vs) =>
+      .map((vs) => {
+        const take = Math.min(vs.length, budget);
+        budget -= take;
+        if (take <= 0) return '';
+        return (
           `<div class="group-head"><svg><use href="#i-group" /></svg><h2>${esc(providerLabel(vs[0]))}</h2><span>${vs.length}</span></div>` +
-          vs.map((v) => cardHtml(v, tokens)).join(''),
-      )
+          vs.slice(0, take).map((v) => cardHtml(v, tokens)).join('')
+        );
+      })
       .join('');
   } else {
-    html = list.map((v) => cardHtml(v, tokens)).join('');
+    html = shown.map((v) => cardHtml(v, tokens)).join('');
   }
   $('#grid').innerHTML = html;
+  const row = $('#pageRow');
+  row.hidden = list.length <= state.limit;
+  if (!row.hidden) $('#pageShowing').textContent = t('page.showing', { a: shown.length, b: list.length });
+  $('#headCount').textContent = t(state.videos.length === 1 ? 'count.one' : 'count.other', { n: state.videos.length });
   $('#grid').classList.toggle('selecting', state.selecting);
   // an empty flex:1 grid would eat the free space and push #empty to the footer
   $('#grid').hidden = list.length === 0;
@@ -824,6 +843,7 @@ function openPlayer(id) {
   $('#lbFrame').src = frameSrc(v);
   $('#lbTitle').textContent = v.title || t('card.untitled');
   paintLbMeta(v);
+  paintLbDetails(v);
   $('#lbRemember').checked = false;
   $('#lbRemember').closest('.switch').hidden = v.kind !== 'file';
   $$('.lb-nav').forEach((b) => (b.style.visibility = ''));
@@ -836,12 +856,22 @@ function paintLbMeta(v) {
   $('#lbHint').hidden = v.kind !== 'page';
   if (v.kind === 'page') $('#lbHint').textContent = t('lb.hint');
   const bits = [];
-  if (v.url) bits.push(`<span>${esc(hostOf(v.url))}</span>`);
-  if (v.duration) bits.push(`<span>${fmtTime(v.duration)}</span>`);
-  if (v.startAt) bits.push(`<span>${esc(t('lb.starts', { t: fmtTime(v.startAt) }))}</span>`);
+  if (v.url) bits.push(`<span class="m">${esc(hostOf(v.url))}</span>`);
+  if (v.duration) bits.push(`<span class="m">${fmtTime(v.duration)}</span>`);
+  if (v.startAt) bits.push(`<span class="m">${esc(t('lb.starts', { t: fmtTime(v.startAt) }))}</span>`);
   bits.push(...(v.tags || []).map((tag) => `<span class="t">#${esc(tag)}</span>`));
-  if (v.notes) bits.push(`<span title="${esc(v.notes)}">${esc(t('lb.notes'))}</span>`);
   $('#lbMeta').innerHTML = bits.join('');
+}
+
+function paintLbDetails(v) {
+  const folder = state.folders.find((f) => f.id === v.folderId);
+  $('#lbSub').textContent = `${providerLabel(v)} / ${folder ? folder.name : t('folder.unfiled')}`;
+  const list = visibleVideos();
+  const i = list.findIndex((x) => x.id === v.id);
+  $('#lbPos').textContent = i === -1 ? '' : t('lb.position', { i: i + 1, n: list.length });
+  const notes = $('#lbNotes');
+  notes.hidden = !v.notes;
+  if (v.notes) notes.innerHTML = `<b>${esc(v.notes)}</b>`;
 }
 
 function positionNav() {
@@ -978,6 +1008,12 @@ function newDraft() {
   $('#pvStart').value = '';
   $('#pvNotes').value = '';
   $('#pvUseOg').checked = true;
+  $('#pvFolder').innerHTML =
+    `<option value="">${esc(t('folder.unfiled'))}</option>` +
+    state.folders.map((f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+  $('#pvDetTitle').textContent = '';
+  $('#pvDetSub').textContent = '';
+  $('#pvStatus').hidden = true;
   $('#dropLabel').textContent = t('upload.choose');
   $('#upProgress').hidden = true;
   $('#addPreview').hidden = true;
@@ -992,7 +1028,7 @@ function setStatus(msg, kind = '') {
 }
 
 function updateSave() {
-  const tab = $('.tab.active').dataset.tab;
+  const tab = $('#addDialog .tab.active').dataset.tab;
   const ok = tab === 'link' ? !!draft.url : tab === 'embed' ? !!draft.embedUrl : !!pickedFile;
   $('#addSave').disabled = !ok;
 }
@@ -1004,6 +1040,18 @@ function paintPreview() {
     ? `<img src="${esc(assetUrl(img))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><span class="ptime">auto</span>`
     : `<span class="placeholder">no thumbnail</span>`;
   $('#addPreview').hidden = !(draft.url || draft.embedUrl || pickedFile);
+  if (!$('#pvDetTitle').textContent) {
+    $('#pvDetTitle').textContent = draft.title || hostOf(draft.url) || pickedFile?.name || '';
+    $('#pvDetSub').textContent = draft.url || draft.embedUrl ? providerLabel(draft) : '';
+  }
+}
+
+function setDetected(title, sub, ok) {
+  $('#pvDetTitle').textContent = title || '';
+  $('#pvDetSub').textContent = sub || '';
+  const st = $('#pvStatus');
+  st.hidden = ok !== true;
+  if (ok === true) $('#pvStatusText').textContent = t('add.preview.ok');
 }
 
 const enrich = debounce(async (raw) => {
@@ -1027,6 +1075,7 @@ const enrich = debounce(async (raw) => {
       draft.title = clean;
       $('#pvTitle').value = clean;
     }
+    setDetected(clean || draft.title || hostOf(u.href), `${providerLabel(draft)}${draft.site ? ' · ' + draft.site : ''}`, true);
     if (found.kind === 'page' && meta.mediaUrl) {
       draft.kind = 'file';
       draft.provider = 'file';
@@ -1039,6 +1088,7 @@ const enrich = debounce(async (raw) => {
     }
     paintPreview();
   } catch (err) {
+    setDetected($('#pvDetTitle').textContent, $('#pvDetSub').textContent, 'err');
     setStatus(t('st.enrichfail', { err: err.message }), 'err');
   }
 }, 550);
@@ -1091,9 +1141,9 @@ $('#addFile').addEventListener('change', (e) => {
 });
 dropField.addEventListener('click', () => $('#addFile').click());
 
-$$('.tab').forEach((tab) =>
+$$('#addDialog .tab').forEach((tab) =>
   tab.addEventListener('click', () => {
-    $$('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+    $$('#addDialog .tab').forEach((x) => x.classList.toggle('active', x === tab));
     $$('.panel[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
     if (tab.dataset.tab === 'upload' && state.backend !== 'remote') {
       setStatus(t('st.uploadlocal'), 'err');
@@ -1106,7 +1156,7 @@ $('#addForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('#addSave');
   btn.disabled = true;
-  const tab = $('.tab.active').dataset.tab;
+  const tab = $('#addDialog .tab.active').dataset.tab;
   try {
     let fileUrl = '';
     if (tab === 'upload') {
@@ -1138,6 +1188,7 @@ $('#addForm').addEventListener('submit', async (e) => {
       favicon: draft.favicon,
       site: draft.site,
       duration: draft.duration,
+      folderId: $('#pvFolder').value || '',
       addedAt: new Date().toISOString(),
     };
     const saved = await store.create(rec);
@@ -1257,10 +1308,13 @@ async function openThumbPicker(id) {
   thumbTarget = v;
   thumbVideoReady = false;
   const playable = canPickFrames(v);
-  $('#tpFrame').hidden = !playable;
-  $('#tpBlocked').hidden = playable;
   const frames = PROVIDERS[v.provider]?.frames?.(v);
-  $('#tpProvider').hidden = playable || !frames;
+  $('#tpFileTitle').textContent = v.title || t('card.untitled');
+  $('#tpFileName').textContent = v.fileUrl ? v.fileUrl.split('/').pop() : hostOf(v.url);
+  $('#tpProvider').hidden = !frames;
+  $('#tpBlocked').hidden = playable || !!frames;
+  $('#tpTabFrame').disabled = !playable;
+  setPickerTab(playable ? 'frame' : 'image');
   if (frames) {
     $('#tpFrames').innerHTML = frames
       .map((f, i) => `<button type="button" class="frame-opt" data-frame="${i}"><img src="${esc(f.url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onload="if(this.naturalWidth<200)this.closest('.frame-opt').remove()" onerror="this.closest('.frame-opt').remove()"><span>${esc(f.label)}</span></button>`)
@@ -1269,19 +1323,21 @@ async function openThumbPicker(id) {
   $('#tpUrl').value = '';
   $('#tpAlsoStart').checked = false;
   $('#tpTime').value = v.startAt ? fmtTime(v.startAt) : '';
-  $('#tpOut').textContent = '0:00';
+  $('#tpOut').textContent = '0:00.000';
+  $('#tpMin').textContent = '0:00';
+  $('#tpMax').textContent = '0:00';
 
   const video = $('#tpVideo');
   const canvas = $('#tpCanvas');
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#0a0c12';
+  ctx.fillStyle = '#09090a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   if (playable) {
     thumbDialog.showModal();
     const src = playableSrc(v);
     video.onerror = () => {
-      $('#tpFrame').hidden = true;
+      setPickerTab('image');
       $('#tpBlocked').hidden = false;
       toast(t('to.framesfail'), 'err');
     };
@@ -1298,14 +1354,26 @@ async function openThumbPicker(id) {
     const dur = isFinite(video.duration) ? video.duration : 0;
     $('#tpRange').max = dur || 100;
     $('#tpRange').step = dur > 300 ? 0.5 : 0.05;
+    $('#tpMax').textContent = fmtTime(dur);
     thumbVideoReady = true;
     if (dur && !v.duration) patch(v.id, { duration: Math.round(dur) }, false);
-    const t = v.startAt || Math.min(2, dur * 0.1) || 0;
-    await jumpTo(t);
+    const start = v.startAt || Math.min(2, dur * 0.1) || 0;
+    await jumpTo(start);
   } else {
     thumbDialog.showModal();
   }
 }
+
+function setPickerTab(which) {
+  $('#tpTabFrame').classList.toggle('active', which === 'frame');
+  $('#tpTabImage').classList.toggle('active', which === 'image');
+  $('#tpFrame').hidden = which !== 'frame';
+  $('#tpImage').hidden = which !== 'image';
+}
+$('#tpTabFrame').addEventListener('click', () => setPickerTab('frame'));
+$('#tpTabImage').addEventListener('click', () => setPickerTab('image'));
+
+const fmtMs = (s) => `${fmtTime(s)}.${String(Math.floor((s % 1) * 1000)).padStart(3, '0')}`;
 
 async function jumpTo(t) {
   const video = $('#tpVideo');
@@ -1313,7 +1381,8 @@ async function jumpTo(t) {
   const dur = isFinite(video.duration) ? video.duration : 0;
   const target = dur ? clamp(t, 0, Math.max(0, dur - 0.1)) : Math.max(0, t);
   $('#tpRange').value = target;
-  $('#tpOut').textContent = fmtTime(target);
+  $('#tpRange').style.setProperty('--pct', (dur ? (target / dur) * 100 : 0) + '%');
+  $('#tpOut').textContent = fmtMs(target);
   $('#tpTime').value = fmtTime(target);
   await seekPromise(video, target);
   drawFrame(video, $('#tpCanvas'));
@@ -1321,12 +1390,12 @@ async function jumpTo(t) {
 
 $('#tpRange').addEventListener('input', (e) => jumpTo(parseFloat(e.target.value)));
 const seekFromInput = () => {
-  const t = parseTime($('#tpTime').value);
-  if (t == null) {
+  const val = parseTime($('#tpTime').value);
+  if (val == null) {
     toast(t('to.timeformat'), 'err');
     return;
   }
-  jumpTo(t);
+  jumpTo(val);
 };
 $('#tpTime').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -1559,6 +1628,7 @@ folderbar.addEventListener('click', (e) => {
   const chip = e.target.closest('[data-folder]');
   if (!chip) return;
   state.folder = chip.dataset.folder;
+  state.limit = 60;
   render();
 });
 folderbar.addEventListener('dblclick', (e) => {
@@ -1596,6 +1666,23 @@ folderbar.addEventListener('drop', async (e) => {
 $('#selectBtn').addEventListener('click', () => setSelecting(!state.selecting));
 $('#selClear').addEventListener('click', () => setSelecting(false));
 $('#selMove').addEventListener('click', openMove);
+
+$('#pageMore').addEventListener('click', () => {
+  state.limit += 60;
+  render();
+});
+
+/* mobile overflow menu for the organization controls */
+$('#menuBtn').addEventListener('click', () => {
+  const open = document.body.classList.toggle('menu-open');
+  $('#menuBtn').setAttribute('aria-pressed', String(open));
+});
+document.addEventListener('click', (e) => {
+  if (!document.body.classList.contains('menu-open')) return;
+  if (e.target.closest('.libhead-controls') || e.target.closest('#menuBtn')) return;
+  document.body.classList.remove('menu-open');
+  $('#menuBtn').setAttribute('aria-pressed', 'false');
+});
 
 const moveDialog = $('#moveDialog');
 let moveTarget = '';
@@ -1679,16 +1766,24 @@ function startRename(v, el) {
 }
 
 $('#tagbar').addEventListener('click', (e) => {
+  if (e.target.closest('[data-tagreset]')) {
+    state.tags.clear();
+    state.limit = 60;
+    render();
+    return;
+  }
   const chip = e.target.closest('[data-tag]');
   if (!chip) return;
-  const t = chip.dataset.tag;
-  state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t);
+  const tag = chip.dataset.tag;
+  state.tags.has(tag) ? state.tags.delete(tag) : state.tags.add(tag);
+  state.limit = 60;
   render();
 });
 
 $('#search').addEventListener('input', (e) => {
   state.q = e.target.value;
   state.tokens = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+  state.limit = 60;
   render();
 });
 
@@ -1698,6 +1793,7 @@ $('#sortSel').addEventListener('change', (e) => {
 });
 $('#providerSel').addEventListener('change', (e) => {
   state.provider = e.target.value;
+  state.limit = 60;
   render();
 });
 
@@ -1792,6 +1888,7 @@ window.addEventListener('drop', async (e) => {
   $('#dropLabel').textContent = `${file.name} · ${(file.size / 1048576).toFixed(1)} MB`;
   $('#pvTitle').value = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ');
   draft.title = $('#pvTitle').value;
+  setDetected(file.name, `${(file.size / 1048576).toFixed(1)} MB`, true);
   paintPreview();
   updateSave();
 });
@@ -1804,6 +1901,8 @@ function setBackend(mode) {
   el.className = 'dot ' + (mode === 'remote' ? 'live' : 'local');
   const demo = /(^|\.)github\.io$/.test(location.hostname);
   el.textContent = mode === 'remote' ? t('foot.remote') : t('foot.local');
+  $('#topDot').className = 'dot ' + (mode === 'remote' ? 'live' : 'local');
+  $('#topStatus').textContent = mode === 'remote' ? t('top.status.live') : t('top.status.local');
   $('#tip').textContent = mode === 'remote' ? t('foot.tip.remote') : demo ? t('foot.tip.demo') : t('foot.tip.local');
 }
 

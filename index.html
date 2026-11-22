@@ -35,6 +35,7 @@
         <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
         <symbol id="i-group" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 13l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
         <symbol id="i-select" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></symbol>
       </defs>
     </svg>
 
@@ -54,8 +55,37 @@
       </div>
 
       <div class="tools">
-        <button type="button" class="icon-btn" id="selectBtn" title="Select videos to move" data-i18n-title="sel.btn" aria-pressed="false"><svg><use href="#i-select" /></svg></button>
-        <button type="button" class="icon-btn" id="groupBtn" title="Group by source (G)" data-i18n-title="group.btn" aria-pressed="false"><svg><use href="#i-group" /></svg></button>
+        <span class="topstatus"><span id="topDot" class="dot"></span><span id="topStatus" data-i18n="top.status.live">Local-first</span></span>
+        <select id="langSel" title="Language" data-i18n-title="lang">
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+          <option value="ru">Русский</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+          <option value="es">Español</option>
+          <option value="zh">简体中文</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+          <option value="hi">हिन्दी</option>
+          <option value="tr">Türkçe</option>
+        </select>
+        <button type="button" class="icon-btn" id="menuBtn" title="More options" data-i18n-title="mob.menu" aria-pressed="false"><svg><use href="#i-more" /></svg></button>
+        <button id="addBtn" class="btn primary"><svg><use href="#i-plus" /></svg> <span data-i18n="add">Add video</span></button>
+      </div>
+    </header>
+
+    <section class="libhead">
+      <div class="libhead-title">
+        <div class="libhead-row">
+          <h2 data-i18n="head.title">Your library</h2>
+          <span id="headCount"></span>
+        </div>
+        <p class="libhead-tag" data-i18n="head.tagline">Good videos. Kept close.</p>
+      </div>
+      <button type="button" class="btn primary mobile-add" data-open="add" aria-label="Add video"><svg><use href="#i-plus" /></svg></button>
+      <div class="libhead-controls">
+        <button type="button" class="btn tool" id="selectBtn" title="Select videos to move" data-i18n-title="sel.btn" aria-pressed="false"><svg><use href="#i-select" /></svg> <span data-i18n="sel.short">Select</span></button>
+        <button type="button" class="btn tool" id="groupBtn" title="Group by source (G)" data-i18n-title="group.btn" aria-pressed="false"><svg><use href="#i-group" /></svg> <span data-i18n="group.short">Group</span></button>
         <div class="viewtoggle" role="group" aria-label="Layout">
           <button type="button" class="icon-btn" id="viewGrid" title="Grid view (V)" data-i18n-title="view.grid" aria-pressed="true"><svg><use href="#i-grid" /></svg></button>
           <button type="button" class="icon-btn" id="viewList" title="List view (V)" data-i18n-title="view.list" aria-pressed="false"><svg><use href="#i-list" /></svg></button>
@@ -70,22 +100,8 @@
         <select id="providerSel" title="Filter by source" data-i18n-title="source">
           <option value="" data-i18n="source.all">All sources</option>
         </select>
-        <select id="langSel" title="Language" data-i18n-title="lang">
-          <option value="en">English</option>
-          <option value="ar">العربية</option>
-          <option value="ru">Русский</option>
-          <option value="fr">Français</option>
-          <option value="de">Deutsch</option>
-          <option value="es">Español</option>
-          <option value="zh">简体中文</option>
-          <option value="ja">日本語</option>
-          <option value="ko">한국어</option>
-          <option value="hi">हिन्दी</option>
-          <option value="tr">Türkçe</option>
-        </select>
-        <button id="addBtn" class="btn primary"><svg><use href="#i-plus" /></svg> <span data-i18n="add">Add video</span></button>
       </div>
-    </header>
+    </section>
 
     <nav id="folderbar" class="tagbar folderbar" aria-label="Folders"></nav>
 
@@ -109,6 +125,11 @@
 
     <main id="grid" class="grid" aria-live="polite"></main>
 
+    <div class="pagerow" id="pageRow" hidden>
+      <span id="pageShowing"></span>
+      <button type="button" id="pageMore" data-i18n="page.more">Load more</button>
+    </div>
+
     <section id="empty" class="empty" hidden>
       <svg class="empty-icon"><use href="#i-film" /></svg>
       <h2 id="emptyTitle" data-i18n="empty.title">Your gallery is empty</h2>
@@ -122,25 +143,41 @@
     <dialog id="lightbox" class="lightbox" aria-label="Video player">
       <div class="lb-shell">
         <div class="lb-bar">
-          <button class="icon-btn" data-lb="close" title="Close (Esc)" data-i18n-title="lb.close"><svg><use href="#i-close" /></svg></button>
-          <h2 id="lbTitle" class="lb-title" title="Double-click to rename" data-i18n-title="lb.rename"></h2>
+          <button type="button" class="lb-back" data-lb="close" title="Close (Esc)" data-i18n-title="lb.close"><svg><use href="#i-left" /></svg> <span data-i18n="lb.back">Library</span></button>
+          <div class="lb-heading">
+            <h2 id="lbTitle" class="lb-title" title="Double-click to rename" data-i18n-title="lb.rename"></h2>
+            <span id="lbSub" class="lb-sub"></span>
+          </div>
           <div class="lb-tools">
             <button class="icon-btn" data-lb="fit" title="Fit to screen" data-i18n-title="lb.fit"><svg><use href="#i-fit" /></svg></button>
             <button class="icon-btn" data-lb="full" title="Fullscreen (F)" data-i18n-title="lb.full"><svg><use href="#i-expand" /></svg></button>
-            <button class="icon-btn" data-lb="thumb" title="Choose thumbnail" data-i18n-title="lb.thumb"><svg><use href="#i-image" /></svg></button>
-            <button class="icon-btn" data-lb="edit" title="Edit details" data-i18n-title="lb.edit"><svg><use href="#i-edit" /></svg></button>
-            <button class="icon-btn" data-lb="open" title="Open original page" data-i18n-title="lb.open"><svg><use href="#i-external" /></svg></button>
+            <button type="button" class="btn tool" data-lb="thumb" title="Choose thumbnail" data-i18n-title="lb.thumb"><svg><use href="#i-image" /></svg> <span data-i18n="lb.thumb.short">Thumbnail</span></button>
+            <button type="button" class="btn tool" data-lb="edit" title="Edit details" data-i18n-title="lb.edit"><svg><use href="#i-edit" /></svg> <span data-i18n="lb.edit">Edit details</span></button>
+            <button type="button" class="btn tool" data-lb="open" title="Open original page" data-i18n-title="lb.open"><svg><use href="#i-external" /></svg> <span data-i18n="lb.open.short">Open original</span></button>
           </div>
         </div>
         <div class="lb-stage" id="lbStage">
+          <div class="lb-frame-wrap">
+            <iframe id="lbFrame" title="Video player" allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; accelerometer; gyroscope" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>
           <button class="lb-nav prev" data-lb="prev" title="Previous (←)" data-i18n-title="lb.prev"><svg><use href="#i-left" /></svg></button>
-          <iframe id="lbFrame" title="Video player" allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; accelerometer; gyroscope" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
           <button class="lb-nav next" data-lb="next" title="Next (→)" data-i18n-title="lb.next"><svg><use href="#i-right" /></svg></button>
           <p class="lb-hint" id="lbHint" hidden></p>
         </div>
-        <div class="lb-foot">
-          <span id="lbMeta" class="lb-meta"></span>
-          <label class="switch"><input type="checkbox" id="lbRemember" /> <span data-i18n="lb.remember">Remember this time as the start point</span></label>
+        <div class="lb-details">
+          <div class="lb-meta-row">
+            <span id="lbMeta" class="lb-meta"></span>
+            <label class="switch"><input type="checkbox" id="lbRemember" /> <span data-i18n="lb.remember">Remember this time as the start point</span></label>
+            <span id="lbPos"></span>
+          </div>
+          <div class="lb-notes-row">
+            <div class="lb-notes" id="lbNotes" hidden></div>
+            <div class="lb-hints">
+              <span><kbd>←</kbd><kbd>→</kbd> <span data-i18n="hints.nav">Prev / next</span></span>
+              <span><kbd>F</kbd> <span data-i18n="hints.full">Fullscreen</span></span>
+              <span><kbd>Esc</kbd> <span data-i18n="hints.esc">Back</span></span>
+            </div>
+          </div>
         </div>
       </div>
     </dialog>
@@ -149,10 +186,14 @@
     <dialog id="addDialog" class="modal">
       <form method="dialog" class="modal-form" id="addForm">
         <header class="modal-head">
-          <h2 data-i18n="add.title">Add video</h2>
-          <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          <div class="modal-head-row">
+            <h2 data-i18n="add.title">Add video</h2>
+            <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          </div>
+          <p class="modal-sub" data-i18n="add.sub">A good find deserves a place in your library.</p>
         </header>
 
+        <div class="modal-body">
         <div class="tabs" role="tablist">
           <button type="button" class="tab active" data-tab="link"><svg><use href="#i-link" /></svg> <span data-i18n="tab.link">Link</span></button>
           <button type="button" class="tab" data-tab="embed"><svg><use href="#i-code" /></svg> <span data-i18n="tab.embed">Embed code</span></button>
@@ -186,19 +227,27 @@
         <div class="preview" id="addPreview" hidden>
           <div class="preview-thumb" id="pvThumb"><span class="placeholder">no thumbnail</span></div>
           <div class="preview-info">
-            <label class="field"><span data-i18n="f.title">Title</span><input id="pvTitle" type="text" placeholder="Video title" data-i18n-placeholder="ph.title" /></label>
-            <div class="row">
-              <label class="field"><span><span data-i18n="f.tags">Tags</span> <small data-i18n="f.tags.hint">(comma separated)</small></span><input id="pvTags" type="text" placeholder="tutorials, watch-later" data-i18n-placeholder="ph.tags" /></label>
-              <label class="field short"><span><span data-i18n="f.start">Start at</span> <small data-i18n="f.start.hint">(mm:ss)</small></span><input id="pvStart" type="text" placeholder="19:42" /></label>
-            </div>
-            <label class="field"><span data-i18n="f.notes">Notes</span><textarea id="pvNotes" rows="2" placeholder="Why you saved it…" data-i18n-placeholder="ph.notes"></textarea></label>
-            <label class="switch"><input type="checkbox" id="pvUseOg" checked /> <span data-i18n="useog">Use the page image as thumbnail</span></label>
+            <b id="pvDetTitle"></b>
+            <span class="pv-sub" id="pvDetSub"></span>
+            <span class="pv-status" id="pvStatus" hidden><svg><use href="#i-check" /></svg><span id="pvStatusText"></span></span>
           </div>
+        </div>
+
+        <label class="field"><span data-i18n="f.title">Title</span><input id="pvTitle" type="text" placeholder="Video title" data-i18n-placeholder="ph.title" /></label>
+        <div class="row">
+          <label class="field"><span data-i18n="add.folder">Folder</span>
+            <select id="pvFolder"></select>
+          </label>
+          <label class="field short"><span><span data-i18n="f.start">Start at</span> <small data-i18n="f.start.hint">(mm:ss)</small></span><input id="pvStart" type="text" placeholder="19:42" class="mono" /></label>
+        </div>
+        <label class="field"><span><span data-i18n="f.tags">Tags</span> <small data-i18n="field.commas">Separate with commas</small></span><input id="pvTags" type="text" placeholder="tutorials, watch-later" data-i18n-placeholder="ph.tags" /></label>
+        <label class="field"><span><span data-i18n="f.notes">Notes</span> <small data-i18n="field.optional">Optional</small></span><textarea id="pvNotes" rows="2" placeholder="Why you saved it…" data-i18n-placeholder="ph.notes"></textarea></label>
+        <label class="switch"><input type="checkbox" id="pvUseOg" checked /> <span data-i18n="useog">Use the page image as thumbnail</span></label>
         </div>
 
         <footer class="modal-foot">
           <p id="addStatus" class="statusline"></p>
-          <div class="spacer"></div>
+          <span class="privacy" data-i18n="add.privacy">Only you. Only your library.</span>
           <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>
           <button type="submit" class="btn primary" id="addSave" disabled data-i18n="add.save">Add to gallery</button>
         </footer>
@@ -209,9 +258,12 @@
     <dialog id="editDialog" class="modal">
       <form method="dialog" class="modal-form" id="editForm">
         <header class="modal-head">
-          <h2 data-i18n="edit.title">Edit video</h2>
-          <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          <div class="modal-head-row">
+            <h2 data-i18n="edit.title">Edit video</h2>
+            <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          </div>
         </header>
+        <div class="modal-body">
         <div class="edit-body">
           <div class="preview-thumb lg" id="edThumb"></div>
           <div class="edit-fields">
@@ -235,6 +287,7 @@
           <button type="button" class="btn ghost" id="edImageUrl"><svg><use href="#i-link" /></svg> <span data-i18n="edit.imageurl">Image URL…</span></button>
           <button type="button" class="btn ghost" id="edDefault"><svg><use href="#i-refresh" /></svg> <span data-i18n="edit.reset">Reset to default</span></button>
         </div>
+        </div>
         <footer class="modal-foot">
           <button type="button" class="btn danger" id="edDelete"><svg><use href="#i-trash" /></svg> <span data-i18n="delete">Delete</span></button>
           <div class="spacer"></div>
@@ -248,44 +301,69 @@
     <dialog id="thumbDialog" class="modal wide">
       <div class="modal-form">
         <header class="modal-head">
-          <h2 data-i18n="thumb.title">Thumbnail</h2>
-          <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          <div class="modal-head-row">
+            <h2 data-i18n="thumb.title">Thumbnail</h2>
+            <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          </div>
+          <p class="modal-sub"><span id="tpFileTitle"></span> <code id="tpFileName"></code></p>
         </header>
 
+        <div class="modal-body">
+        <div class="tp-sources" role="tablist">
+          <button type="button" class="tab active" id="tpTabFrame" data-tpsrc="frame"><svg><use href="#i-film" /></svg> <span data-i18n="thumb.src.frame">Capture a frame</span></button>
+          <button type="button" class="tab" id="tpTabImage" data-tpsrc="image"><svg><use href="#i-image" /></svg> <span data-i18n="thumb.src.image">Use an image</span></button>
+        </div>
+
         <div id="tpFrame" class="panel">
-          <div class="scrub-wrap">
-            <div class="scrub-video"><video id="tpVideo" playsinline preload="metadata"></video></div>
-            <div class="scrub-side">
-              <div class="canvas-holder"><canvas id="tpCanvas" width="640" height="360"></canvas><span class="canvas-note" data-i18n="thumb.preview">preview</span></div>
-              <div class="row">
-                <label class="field short"><span><span data-i18n="thumb.at">Frame at</span> <small data-i18n="f.start.hint">(mm:ss)</small></span><input id="tpTime" type="text" placeholder="19:42" /></label>
-                <label class="field"><span><span data-i18n="thumb.scrub">Scrub</span> <output id="tpOut">0:00</output></span><input id="tpRange" type="range" min="0" max="100" step="0.1" value="0" /></label>
-              </div>
-              <label class="switch"><input type="checkbox" id="tpAlsoStart" /> <span data-i18n="thumb.alsostart">Also start the video at this point</span></label>
-              <div class="row">
+          <div class="tp-hero">
+            <video id="tpVideo" class="sr-video" playsinline preload="metadata"></video>
+            <canvas id="tpCanvas" width="640" height="360"></canvas>
+            <span class="canvas-note" data-i18n="thumb.preview">preview</span>
+            <span class="tp-stamp" id="tpOut">0:00</span>
+          </div>
+          <div class="tp-scrub">
+            <input id="tpRange" type="range" min="0" max="100" step="0.1" value="0" aria-label="Scrub" />
+            <div class="tp-time-row">
+              <span class="bound" id="tpMin">0:00</span>
+              <div class="tp-steps">
                 <button type="button" class="btn" id="tpStepB" data-i18n="thumb.stepb">-1s</button>
+                <input id="tpTime" type="text" placeholder="19:42" aria-label="Frame at" />
                 <button type="button" class="btn" id="tpStepF" data-i18n="thumb.stepf">+1s</button>
-                <button type="button" class="btn primary" id="tpGrab"><svg><use href="#i-check" /></svg> <span data-i18n="thumb.grab">Use this frame</span></button>
               </div>
+              <span class="bound" id="tpMax">0:00</span>
             </div>
+          </div>
+          <div class="tp-start-row">
+            <div class="tp-start-copy">
+              <b data-i18n="thumb.alsostart">Also start the video here</b>
+              <span data-i18n="thumb.start.sub">Playback will begin at the selected frame.</span>
+            </div>
+            <label class="switch"><input type="checkbox" id="tpAlsoStart" /></label>
           </div>
           <p class="help" data-i18n="thumb.help">Load may take a moment for long files — the player seeks by byte range, so 19:42 opens without downloading 19 minutes.</p>
         </div>
 
-        <div id="tpProvider" class="panel" hidden>
-          <p class="help" data-i18n="thumb.provider">This is an embedded player, so the browser cannot read its frames (cross-origin). Pick one of the frames the provider exposes, upload an image, or paste an image URL.</p>
-          <div class="frame-grid" id="tpFrames"></div>
+        <div id="tpImage" class="panel" hidden>
+          <div id="tpProvider" hidden>
+            <p class="help" data-i18n="thumb.provider">This is an embedded player, so the browser cannot read its frames (cross-origin). Pick one of the frames the provider exposes, upload an image, or paste an image URL.</p>
+            <div class="frame-grid" id="tpFrames"></div>
+          </div>
+          <div id="tpBlocked" hidden>
+            <p class="help" data-i18n="thumb.blocked">No frame access for this source. Use an uploaded image or an image URL below.</p>
+          </div>
+          <div class="row">
+            <label class="field grow"><span data-i18n="thumb.url">…or paste an image URL</span><input id="tpUrl" type="url" placeholder="https://…/poster.jpg" data-i18n-placeholder="thumb.url.ph" /></label>
+            <button type="button" class="btn" id="tpUseUrl" data-i18n="thumb.url.use">Use URL</button>
+          </div>
         </div>
-
-        <div id="tpBlocked" class="panel" hidden>
-          <p class="help" data-i18n="thumb.blocked">No frame access for this source. Use an uploaded image or an image URL below.</p>
         </div>
 
         <div class="thumb-footer">
           <label class="btn ghost"><svg><use href="#i-upload" /></svg> <span data-i18n="thumb.upload">Upload image</span><input id="tpUpload" type="file" accept="image/*" hidden /></label>
-          <label class="field grow"><span data-i18n="thumb.url">…or paste an image URL</span><input id="tpUrl" type="url" placeholder="https://…/poster.jpg" data-i18n-placeholder="thumb.url.ph" /></label>
-          <button type="button" class="btn" id="tpUseUrl" data-i18n="thumb.url.use">Use URL</button>
-          <button type="button" class="btn ghost" id="tpReset" data-i18n="edit.reset">Reset to default</button>
+          <button type="button" class="btn quiet" id="tpReset" data-i18n="thumb.reset">Reset to original</button>
+          <div class="spacer"></div>
+          <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>
+          <button type="button" class="btn primary" id="tpGrab"><svg><use href="#i-check" /></svg> <span data-i18n="thumb.grab">Use this frame</span></button>
         </div>
       </div>
     </dialog>
@@ -294,13 +372,17 @@
     <dialog id="moveDialog" class="modal tiny">
       <form method="dialog" class="modal-form" id="moveForm">
         <header class="modal-head">
-          <h2 data-i18n="move.title">Move to folder</h2>
-          <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          <div class="modal-head-row">
+            <h2 data-i18n="move.title">Move to folder</h2>
+            <button type="button" class="icon-btn" data-close><svg><use href="#i-close" /></svg></button>
+          </div>
         </header>
+        <div class="modal-body">
         <div class="move-list" id="mvList"></div>
         <div class="move-new">
           <label class="field grow"><span data-i18n="move.new">New folder</span><input id="mvNew" type="text" placeholder="Folder name" data-i18n-placeholder="move.ph" /></label>
           <button type="button" class="btn" id="mvCreate"><svg><use href="#i-plus" /></svg> <span data-i18n="move.create">Create</span></button>
+        </div>
         </div>
         <footer class="modal-foot">
           <div class="spacer"></div>
@@ -312,8 +394,12 @@
 
     <dialog id="confirmDialog" class="modal tiny">
       <div class="modal-form">
-        <h2 id="cfTitle" data-i18n="cf.title">Delete this video?</h2>
-        <p class="help" id="cfText" data-i18n="cf.text">This removes it from the library. The original page or uploaded file is not touched.</p>
+        <header class="modal-head">
+          <div class="modal-head-row"><h2 id="cfTitle" data-i18n="cf.title">Delete this video?</h2></div>
+        </header>
+        <div class="modal-body">
+          <p class="help" id="cfText" data-i18n="cf.text">This removes it from the library. The original page or uploaded file is not touched.</p>
+        </div>
         <footer class="modal-foot">
           <div class="spacer"></div>
           <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>

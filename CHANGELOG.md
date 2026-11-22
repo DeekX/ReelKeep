@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.5.0] - 2026-11-22
+
+### Added
+- Merged the Figma design's strengths into the screening-room identity: page heading
+  ("Your library" + count + tagline) with organization controls on their own row; slim
+  topbar with live storage status; labeled Select/Group/Thumbnail/Edit/Open-original
+  buttons; TAGS micro-label with an "All tags" reset chip; product-voice microcopy
+  (heading tagline, add-dialog subtitle and privacy line) in all 11 languages.
+- Add dialog: folder field at add time, integrated link-preview row with detected
+  title/source and a "Video details found" status, right-aligned field hints.
+- Player: "Back to library" labeled button, provider/folder breadcrumb, position
+  indicator ("N of M videos"), notes under the stage, visible keyboard hints,
+  framed 1280px stage on a darker surround, circular edge navigation.
+- Thumbnail picker: single large frame preview with ms-precision stamp, source tabs
+  (Capture a frame / Use an image), custom scrubber with accent elapsed fill,
+  ±1s stepping around a precise mono time input, toggle switch for start-at-frame.
+- Chunked rendering with "Showing N of M / Load more" for large libraries.
+- Mobile: compact topbar with overflow menu for organization controls, square add
+  button in the heading, horizontally scrollable folder row, single-column gallery.
+- Toggle-switch styling for all boolean switches; warm-grey Figma neutral palette
+  (`#101113/#18191d/#2c2e35`) with sage status green; dialog radius 12px.
+- `docs/screenshot-add.png` and `docs/screenshot-mobile.png`.
+
+### Fixed
+- Latent translator shadowing bugs (`const t = …` inside `openThumbPicker`'s error
+  handler and `seekFromInput`) that would throw on frame-read failure / invalid time.
+- Add-dialog tab handler no longer toggles the picker's source tabs (scoped selectors).
+
+### Kept (deliberately not adopted from Figma)
+- Broadcast-blue accent with dark text (Figma's `#7278E8` + white fails AA and is the
+  cloned AI-indigo); drag dock/ghost/hot-state; list ledger; empty/selection/move/
+  confirm/toast surfaces; group-by-source slates; native playback controls (custom
+  transport is impossible for cross-origin embeds); system font stacks (no webfont
+  downloads); fluid widths + RTL logical properties instead of fixed 1440/600/880px.
+
 ## [1.4.0] - 2026-11-22
 
 ### Changed

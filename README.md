@@ -55,6 +55,8 @@ uploads, no automatic page titles. Run the server for the full experience.
    stored in `videos/` and served locally.
 4. **Direct file URL** — a link ending in `.mp4`, `.webm`, `.mov`, … plays directly.
 
+![The add dialog: detected preview, folder choice, tags and notes](docs/screenshot-add.png)
+
 ## Covers and frame-accurate thumbnails
 
 Every card shows a default cover first: the page's own image (`og:image`, copied into

@@ -175,6 +175,16 @@ try {
   await sleep(700);
   await shoot('screenshot-rtl.png');
 
+  // Add dialog (merged Figma structure) and the mobile layout.
+  await evaluate(`setLocale('en'); openAdd()`);
+  await sleep(500);
+  await shoot('screenshot-add.png');
+  await evaluate(`addDialog.close()`);
+  await send('Emulation.setDeviceMetricsOverride', { width: 376, height: 812, deviceScaleFactor: 1, mobile: true });
+  await sleep(700);
+  await shoot('screenshot-mobile.png');
+  await send('Emulation.clearDeviceMetricsOverride');
+
   ws.close();
 } finally {
   browser.kill();
