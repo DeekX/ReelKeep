@@ -170,6 +170,8 @@ CI runs the suite on Linux, macOS and Windows against Node 18, 20 and 22.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules (zero dependencies,
 plain JSON, loopback by default), [docs/api.md](docs/api.md) for the HTTP API
 and the video record schema, and [CHANGELOG.md](CHANGELOG.md) for release history.
+Planning visual work? [docs/ui-brief.md](docs/ui-brief.md) is the design handoff:
+every surface, the token set, and the JS/i18n/RTL contracts a redesign must preserve.
 
 ## Languages
 
