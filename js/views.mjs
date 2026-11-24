@@ -184,6 +184,7 @@ export function render() {
   renderFolderbar();
   renderFolderActions();
   renderSelectbar();
+  $('#filtersBtn')?.classList.toggle('filtered', !!(state.provider || state.type || state.group));
 }
 
 export function renderFolderbar() {

@@ -195,6 +195,7 @@ document.addEventListener('reelkeep:locale', () => {
   $('#langSel').value = i18nCurrent();
   render();
   setBackend(state.mode);
+  applyTheme(currentTheme());
   if (editDialog.open && editingItem()) openEdit(editingItem().id);
   if ($('#lightbox').open && state.current) {
     paintLbMeta(state.current);
@@ -223,10 +224,88 @@ function setBackend(mode) {
     : mode === 'server' ? t('foot.remote') : mode === 'folder' ? t('foot.folder') : mode === 'opfs' ? t('foot.opfs') : mode === 'idb' ? t('foot.idb') : t('foot.local');
   $('#libPath').textContent =
     mode === 'server' ? 'data/library.json' : mode === 'folder' ? `${state.folderName || 'folder'}/library.json` : mode === 'local' ? 'localStorage' : 'library.json';
-  $('#topDot').className = 'dot ' + (live ? 'live' : 'local');
-  $('#topStatus').textContent = live ? t('top.status.live') : t('top.status.local');
   $('#tip').textContent = mode === 'server' ? t('foot.tip.remote') : demo ? t('foot.tip.demo') : t('foot.tip.local');
 }
+
+/* ============================================================ theme */
+
+const THEME_KEY = 'reelkeep.theme';
+const currentTheme = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+
+function applyTheme(mode) {
+  document.documentElement.dataset.theme = mode;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = mode === 'light' ? '#f5f5f3' : '#101113';
+  const key = mode === 'light' ? 'theme.toDark' : 'theme.toLight';
+  const btn = $('#themeBtn');
+  btn.title = t(key);
+  btn.setAttribute('data-i18n-title', key);
+}
+
+function initTheme() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_KEY);
+  } catch {
+    /* storage blocked */
+  }
+  const mq = window.matchMedia('(prefers-color-scheme: light)');
+  applyTheme(saved === 'light' || saved === 'dark' ? saved : mq.matches ? 'light' : 'dark');
+  mq.addEventListener?.('change', (e) => {
+    let s = null;
+    try {
+      s = localStorage.getItem(THEME_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (!s) applyTheme(e.matches ? 'light' : 'dark');
+  });
+  $('#themeBtn').addEventListener('click', () => {
+    const next = currentTheme() === 'light' ? 'dark' : 'light';
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      /* private mode */
+    }
+    applyTheme(next);
+  });
+}
+
+/* ============================================ control popovers */
+
+function closePops() {
+  for (const [b, p] of [
+    ['#filtersBtn', '#filtersPop'],
+    ['#moreBtn', '#morePop'],
+  ]) {
+    $(p).hidden = true;
+    $(b).setAttribute('aria-expanded', 'false');
+    $(b).classList.remove('on');
+  }
+}
+
+function wirePop(btnId, popId) {
+  const btn = $(btnId);
+  const pop = $(popId);
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = pop.hidden;
+    closePops();
+    pop.hidden = !willOpen;
+    btn.setAttribute('aria-expanded', String(willOpen));
+    btn.classList.toggle('on', willOpen);
+  });
+  pop.addEventListener('click', (e) => e.stopPropagation());
+}
+
+wirePop('#filtersBtn', '#filtersPop');
+wirePop('#moreBtn', '#morePop');
+document.addEventListener('click', closePops);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closePops();
+});
+$('#exportBtn').addEventListener('click', closePops);
+$('#importBtn').addEventListener('click', closePops);
 
 /* ------------------------------------------------------- storage mode UI */
 
@@ -502,6 +581,14 @@ window.ReelKeep = {
   add: addItem,
   patch,
   removeItem,
+  setTheme: (m) => {
+    try {
+      localStorage.setItem(THEME_KEY, m);
+    } catch {
+      /* ignore */
+    }
+    applyTheme(m);
+  },
 };
 
 // never lose a debounced save when the tab goes away
@@ -540,4 +627,5 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   });
 }
 
+initTheme();
 boot();

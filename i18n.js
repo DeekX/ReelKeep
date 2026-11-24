@@ -3039,6 +3039,22 @@ const I18N_DEMO = {
 };
 for (const lang of Object.keys(I18N_DEMO)) Object.assign(I18N_LOCALES[lang], I18N_DEMO[lang]);
 
+/* Decluttered chrome + theme toggle strings (v2.5.0). */
+const I18N_UI = {
+  en: { 'filters.btn': 'Filters', 'more.btn': 'More', 'theme.toLight': 'Switch to light mode', 'theme.toDark': 'Switch to dark mode' },
+  ar: { 'filters.btn': 'مرشحات', 'more.btn': 'المزيد', 'theme.toLight': 'التبديل إلى الوضع الفاتح', 'theme.toDark': 'التبديل إلى الوضع الداكن' },
+  ru: { 'filters.btn': 'Фильтры', 'more.btn': 'Ещё', 'theme.toLight': 'Переключить на светлую тему', 'theme.toDark': 'Переключить на тёмную тему' },
+  fr: { 'filters.btn': 'Filtres', 'more.btn': 'Plus', 'theme.toLight': 'Passer en mode clair', 'theme.toDark': 'Passer en mode sombre' },
+  de: { 'filters.btn': 'Filter', 'more.btn': 'Mehr', 'theme.toLight': 'Zum hellen Modus wechseln', 'theme.toDark': 'Zum dunklen Modus wechseln' },
+  es: { 'filters.btn': 'Filtros', 'more.btn': 'Más', 'theme.toLight': 'Cambiar a modo claro', 'theme.toDark': 'Cambiar a modo oscuro' },
+  zh: { 'filters.btn': '筛选', 'more.btn': '更多', 'theme.toLight': '切换到浅色模式', 'theme.toDark': '切换到深色模式' },
+  ja: { 'filters.btn': 'フィルター', 'more.btn': 'その他', 'theme.toLight': 'ライトモードに切り替え', 'theme.toDark': 'ダークモードに切り替え' },
+  ko: { 'filters.btn': '필터', 'more.btn': '더 보기', 'theme.toLight': '라이트 모드로 전환', 'theme.toDark': '다크 모드로 전환' },
+  hi: { 'filters.btn': 'फ़िल्टर', 'more.btn': 'अधिक', 'theme.toLight': 'लाइट मोड पर जाएँ', 'theme.toDark': 'डार्क मोड पर जाएँ' },
+  tr: { 'filters.btn': 'Filtreler', 'more.btn': 'Daha fazla', 'theme.toLight': 'Açık moda geç', 'theme.toDark': 'Koyu moda geç' },
+};
+for (const lang of Object.keys(I18N_UI)) Object.assign(I18N_LOCALES[lang], I18N_UI[lang]);
+
 const I18N_META = {
   en: { name: 'English', dir: 'ltr' },
   ar: { name: 'العربية', dir: 'rtl' },

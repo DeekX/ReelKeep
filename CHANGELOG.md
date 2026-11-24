@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.5.0] - 2026-11-24
+
+Calmer chrome and a first-class light theme. No behaviour or API changes.
+
+### Added
+- **Light mode**: full token set ("paper") obeying the same identity — warm
+  neutrals, hairlines, mono slates, broadcast blue darkened to `#0b6bcb` for AA.
+  Topbar sun/moon toggle; initial theme follows `prefers-color-scheme`, manual
+  choice remembered; `meta[theme-color]` and `color-scheme` follow.
+- **Filters / More popovers**: source, type and Group move into a labeled Filters
+  popover (dot marks active filters); Export/Import into More. Toolbar is now five
+  controls instead of eight.
+- `docs/screenshot-light.png`; verification captures for popovers, light dialogs,
+  RTL light and the mobile overflow panel.
+
+### Changed
+- **Decluttered head**: storage status no longer duplicated in the topbar; the
+  three filter strips (folders/tags/views) share one quiet register — text chips
+  in single scrollable rows with an end fade, boxes only for hover/active/drag.
+  Drag dock, ghost and hot-target ergonomics unchanged.
+- All ~20 hardcoded dark colours mid-rule became tokens, which is what makes the
+  light theme possible; select chevrons no longer tile (shorthand reset bug).
+- RTL: `unicode-bidi: plaintext` keeps `#tag` reading order in Arabic.
+- `docs/ui-brief.md` updated with the corrected IA, strip rules and light tokens
+  so the next design pass inherits them.
+
+### Fixed
+- Filter strips collapsed to 4px slivers: `overflow-x: auto` removed their
+  automatic minimum size in the body column flex; strips are now `flex: none`.
+- Duplicate `#groupBtn` id introduced while moving Group into the popover.
+
 ## [2.4.0] - 2026-11-24
 
 Scale, portability and polish (roadmap Phase 6).

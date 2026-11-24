@@ -45,6 +45,12 @@ before enabling LAN mode.
 install icon); after the first load the whole app works offline. Updates arrive as
 a "new version ready — Reload" toast, never mid-session.
 
+**Two themes:** dark (the screening room) and light (the same console on paper).
+The sun/moon button in the topbar switches; the first visit follows your OS
+preference and your choice is remembered.
+
+![The library in light mode](docs/screenshot-light.png)
+
 **Three storage modes**, switchable from the footer's *Storage* button, always
 labeled with their limits:
 

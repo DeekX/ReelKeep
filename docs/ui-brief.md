@@ -108,12 +108,27 @@ blue. Execute these decisions exactly:
     ("Good videos. Kept close."), add-dialog subtitle ("A good find deserves a place in
     your library.") and privacy line ("Only you. Only your library."). All such strings
     live in i18n keys, in every locale.
-14. **Information architecture:** slim topbar (brand, search, storage status, language,
-    add) + a page heading row ("Your library" + count + tagline) carrying the
-    organization controls (Select, Group, view toggle, sort, source) as **labeled**
-    buttons, not icon-only. Mobile collapses those controls into an overflow menu.
+14. **Information architecture (v2.5.0 declutter):** slim topbar (brand, search,
+    theme toggle, language, add — storage status lives ONLY in the footer) + a page
+    heading row ("Your library" + count + tagline) carrying **five** labeled controls:
+    Select, view toggle, sort, **Filters** popover (Group toggle + source + type),
+    **More** popover (Export, Import). A dot on Filters marks active filters.
+    Below: three single-row quiet filter strips (folders / tags / smart views),
+    text chips in one scrollable row with an end fade; boxes only for
+    hover/active/drag. Mobile collapses the five controls into an overflow menu
+    where popovers unfold inline. Never add a sixth toolbar control or a fourth
+    strip — put it in a popover or a strip.
 
-Dark theme only. A light theme is a stretch goal only if it obeys the same identity.
+**Two themes, one identity.** Dark is the screening room; light ("paper") obeys the
+same corners, hairlines, mono slates and single accent, darkened for AA on paper
+(`--accent: #0b6bcb`, white on-accent text). Theme = saved override else
+`prefers-color-scheme`; toggle in topbar; `meta[theme-color]` follows. Every colour
+comes from tokens — the light set overrides `:root` under `html[data-theme="light"]`.
+Never hardcode a colour mid-rule (the v2.4 audit found ~20 hardcoded darks that
+blocked light mode; they are tokens now: `--panel-3`, `--panel-hover`,
+`--line-strong`, `--accent-tint`, `--accent-line`, `--on-accent`, `--scrim`,
+`--scrim-panel`, `--veil`, `--float-bg`, `--track`, `--knob`, `--on-stage`,
+`--ok-line`, `--danger-tint`, `--danger-line`).
 
 ---
 
@@ -152,9 +167,16 @@ Type scale: body 13, card title 13 (list 15), dialog h2 15, micro 10–11 mono, 
 
 ### 4.1 Gallery chrome
 - **Topbar** (sticky, single row, wraps ≤700px): brand lockup; search (left-anchored,
-  icon + `/` kbd); tools right: select-mode (`#selectBtn`), group-by-source (`#groupBtn`),
-  grid/list segmented (`#viewGrid`/`#viewList`), sort/source/language custom-chevron
-  `<select>`s (`#sortSel`, `#providerSel`, `#langSel`), primary **Add video** (`#addBtn`).
+  icon + `/` kbd); tools right: theme toggle (`#themeBtn`, sun/moon), language
+  (`#langSel`), overflow (`#menuBtn`, mobile), primary **Add item** (`#addBtn`).
+- **Heading controls**: `#selectBtn`, `#viewGrid`/`#viewList`, `#sortSel`,
+  `#filtersBtn`→`#filtersPop` (contains `#groupBtn`, `#providerSel`, `#typeSel`),
+  `#moreBtn`→`#morePop` (contains `#exportBtn`, `#importBtn`). Popovers are floating
+  panels (shadow allowed); on mobile they unfold inline inside the overflow panel.
+- **Filter strips** (`#folderbar`, `#tagbar`, `#smartbar`): one quiet register,
+  single scrollable row, end fade; `flex: none` is required — `overflow-x: auto`
+  removes the automatic minimum size and the body column would shrink them to
+  slivers (v2.5.0 regression, fixed).
 - **Folder bar** (`#folderbar`): squared chips *All videos*, *Unfiled*, folders (icon +
   name + mono count), dashed *New folder*; folder chips are comfortable at rest
   (6px/12px padding, 12.5px). **Drop targets**: while dragging (`body.drag-ids`) the bar

@@ -118,6 +118,13 @@ try {
   await sleep(700); // let the card entrance animation settle
   await shoot('screenshot-grid.png');
 
+  // light theme capture, then back to dark for the remaining shots
+  await evaluate(`ReelKeep.setTheme('light')`);
+  await sleep(400);
+  await shoot('screenshot-light.png');
+  await evaluate(`ReelKeep.setTheme('dark')`);
+  await sleep(300);
+
   await evaluate(`ReelKeep.applyView('list')`);
   await sleep(500);
   await shoot('screenshot-list.png');

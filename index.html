@@ -45,6 +45,9 @@
         <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
         <symbol id="i-article" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 9h8M8 12.5h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
         <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v2h16v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+        <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
       </defs>
     </svg>
 
@@ -64,7 +67,7 @@
       </div>
 
       <div class="tools">
-        <span class="topstatus"><span id="topDot" class="dot"></span><span id="topStatus" data-i18n="top.status.live">Local-first</span></span>
+        <button type="button" class="icon-btn" id="themeBtn" title="Switch to light mode" data-i18n-title="theme.toLight"><svg class="i-moon"><use href="#i-moon" /></svg><svg class="i-sun"><use href="#i-sun" /></svg></button>
         <select id="langSel" title="Language" data-i18n-title="lang">
           <option value="en">English</option>
           <option value="ar">العربية</option>
@@ -99,7 +102,6 @@
       <button type="button" class="btn primary mobile-add" data-open="add" aria-label="Add item" data-i18n-aria-label="add"><svg><use href="#i-plus" /></svg></button>
       <div class="libhead-controls">
         <button type="button" class="btn tool" id="selectBtn" title="Select videos to move" data-i18n-title="sel.btn" aria-pressed="false"><svg><use href="#i-select" /></svg> <span data-i18n="sel.short">Select</span></button>
-        <button type="button" class="btn tool" id="groupBtn" title="Group by source (G)" data-i18n-title="group.btn" aria-pressed="false"><svg><use href="#i-group" /></svg> <span data-i18n="group.short">Group</span></button>
         <div class="viewtoggle" role="group" aria-label="Layout">
           <button type="button" class="icon-btn" id="viewGrid" title="Grid view (V)" data-i18n-title="view.grid" aria-pressed="true"><svg><use href="#i-grid" /></svg></button>
           <button type="button" class="icon-btn" id="viewList" title="List view (V)" data-i18n-title="view.list" aria-pressed="false"><svg><use href="#i-list" /></svg></button>
@@ -111,14 +113,31 @@
           <option value="opened" data-i18n="sort.opened">Recently opened</option>
           <option value="duration" data-i18n="sort.duration">Longest</option>
         </select>
-        <select id="providerSel" title="Filter by source" data-i18n-title="source">
-          <option value="" data-i18n="source.all">All sources</option>
-        </select>
-        <select id="typeSel" title="Filter by type" data-i18n-title="filter.type">
-          <option value="" data-i18n="filter.type.all">All types</option>
-        </select>
-        <button type="button" class="btn tool" id="exportBtn" title="Export library" data-i18n-title="export.btn"><svg><use href="#i-download" /></svg> <span data-i18n="export.btn">Export</span></button>
-        <button type="button" class="btn tool" id="importBtn" title="Import library" data-i18n-title="import.btn"><svg><use href="#i-upload" /></svg> <span data-i18n="import.btn">Import</span></button>
+        <button type="button" class="btn tool" id="filtersBtn" title="Filters" data-i18n-title="filters.btn" aria-expanded="false" aria-controls="filtersPop"><svg><use href="#i-filter" /></svg> <span data-i18n="filters.btn">Filters</span><span class="dotmark"></span></button>
+        <div class="pop" id="filtersPop" hidden>
+          <div class="pop-row">
+            <button type="button" class="btn tool" id="groupBtn" title="Group by source (G)" data-i18n-title="group.btn" aria-pressed="false"><svg><use href="#i-group" /></svg> <span data-i18n="group.short">Group</span></button>
+          </div>
+          <label class="field"><span data-i18n="source">Filter by source</span>
+            <select id="providerSel" title="Filter by source" data-i18n-title="source">
+              <option value="" data-i18n="source.all">All sources</option>
+            </select>
+          </label>
+          <label class="field"><span data-i18n="filter.type">Filter by type</span>
+            <select id="typeSel" title="Filter by type" data-i18n-title="filter.type">
+              <option value="" data-i18n="filter.type.all">All types</option>
+            </select>
+          </label>
+        </div>
+        <button type="button" class="btn tool" id="moreBtn" title="More" data-i18n-title="more.btn" aria-expanded="false" aria-controls="morePop"><svg><use href="#i-more" /></svg> <span data-i18n="more.btn">More</span></button>
+        <div class="pop" id="morePop" hidden>
+          <div class="pop-row">
+            <button type="button" class="btn tool" id="exportBtn" title="Export library" data-i18n-title="export.btn"><svg><use href="#i-download" /></svg> <span data-i18n="export.btn">Export</span></button>
+          </div>
+          <div class="pop-row">
+            <button type="button" class="btn tool" id="importBtn" title="Import library" data-i18n-title="import.btn"><svg><use href="#i-upload" /></svg> <span data-i18n="import.btn">Import</span></button>
+          </div>
+        </div>
         <input id="importFile" type="file" accept=".json,.html,.htm,.csv,.txt,application/json,text/html,text/csv,text/plain" hidden />
       </div>
     </section>
