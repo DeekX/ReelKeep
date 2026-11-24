@@ -4,7 +4,7 @@
 import { hostOf } from './util.mjs';
 
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '2.6.0';
+export const APP_VERSION = '2.6.1';
 export const ITEM_TYPES = ['video', 'audio', 'image', 'article', 'link', 'pdf', 'note', 'file'];
 
 export function newId(prefix = 'i') {

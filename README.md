@@ -1,3 +1,5 @@
+<img src="icons/icon.svg" width="96" alt="ReelKeep — a bookmark with a play cutout" />
+
 # ReelKeep
 
 A local-first library for everything you want to keep — videos, articles, images,

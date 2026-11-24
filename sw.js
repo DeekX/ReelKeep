@@ -2,7 +2,7 @@
    Shell: cache-first with background revalidate. Navigations: network-first
    with cache fallback. API, media and user files: never cached. */
 
-const CACHE = 'reelkeep-shell-v2.5.0';
+const CACHE = 'reelkeep-shell-v2.6.1';
 const SHELL = [
   './',
   'index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   'i18n.js',
   'app.js',
   'manifest.webmanifest',
+  'icons/icon.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',
 ];

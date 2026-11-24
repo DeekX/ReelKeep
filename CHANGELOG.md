@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.6.1] - 2026-11-24
+
+### Added
+- **Project icon** (`icons/icon.svg`, owner-supplied): a cream bookmark with a
+  play cutout on a charcoal tile. Now the favicon, the topbar brand mark, the
+  PWA manifest icon (SVG + rasterized PNGs incl. maskable), the extension icons,
+  and the README header image.
+- `scripts/gen-icons.mjs` rasterizes the SVG through headless Chrome/Edge (zero
+  dependencies, same CDP approach as the screenshot tool) instead of drawing a
+  procedural mark.
+
+### Changed
+- Service-worker shell cache bumped so installed apps pick up the new mark.
+- `docs/ui-brief.md` brand lockup updated: the tile is the project icon itself.
+
 ## [2.6.0] - 2026-11-24
 
 The filter console: one row instead of three stacked strips, and multi-select

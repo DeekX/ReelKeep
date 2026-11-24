@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ReelKeep">
+  <rect width="512" height="512" rx="112" fill="#1b1b22"/>
+  <path fill="#f4f1ea" fill-rule="evenodd"
+        d="M180 96 H332 Q352 96 352 116 V416 L256 340 L160 416 V116 Q160 96 180 96 Z
+           M226 170 L306 215 L226 260 Z"/>
+</svg>

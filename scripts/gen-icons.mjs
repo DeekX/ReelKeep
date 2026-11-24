@@ -1,99 +1,91 @@
-/* Dev tool: generate the PWA icons without dependencies.
-   Draws the ReelKeep mark (broadcast-blue rounded square + dark play triangle)
-   into an RGBA buffer and encodes PNG with node:zlib. Run: node scripts/gen-icons.mjs */
+/* Dev tool: rasterize icons/icon.svg (the project mark) into the PNG sizes the
+   PWA manifest and the extension need. Zero dependencies — uses the installed
+   Chrome/Edge over CDP, exactly like scripts/screenshot.mjs.
+   Run: node scripts/gen-icons.mjs   (Node 18+, Chrome/Edge installed) */
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import zlib from 'node:zlib';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SVG = path.join(ROOT, 'icons', 'icon.svg');
 const OUT = path.join(ROOT, 'icons');
-fs.mkdirSync(OUT, { recursive: true });
+const SIZES = [16, 32, 48, 128, 192, 512];
 
-const CRC_TABLE = (() => {
-  const t = new Int32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c;
-  }
-  return t;
-})();
-const crc32 = (buf) => {
-  let c = -1;
-  for (const b of buf) c = CRC_TABLE[(c ^ b) & 255] ^ (c >>> 8);
-  return (c ^ -1) >>> 0;
-};
-const chunk = (type, data) => {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crc]);
-};
-
-function encodePng(w, h, rgba) {
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(w, 0);
-  ihdr.writeUInt32BE(h, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
-  const raw = Buffer.alloc((w * 4 + 1) * h);
-  for (let y = 0; y < h; y++) {
-    raw[y * (w * 4 + 1)] = 0; // filter none
-    rgba.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
-  }
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', ihdr),
-    chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
+const candidates = [
+  process.env.CHROME_PATH,
+  `${process.env.PROGRAMFILES}\\Google\\Chrome\\Application\\chrome.exe`,
+  `${process.env['PROGRAMFILES(X86)']}\\Google\\Chrome\\Application\\chrome.exe`,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+  `${process.env['PROGRAMFILES(X86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  `${process.env.PROGRAMFILES}\\Microsoft\\Edge\\Application\\msedge.exe`,
+].filter(Boolean);
+const chrome = candidates.find((p) => fs.existsSync(p));
+if (!chrome) {
+  console.error('Chrome/Edge not found — set CHROME_PATH to rasterize icons.');
+  process.exit(1);
 }
 
-function draw(size, { maskable = false } = {}) {
-  const buf = Buffer.alloc(size * size * 4);
-  const bg = [0x58, 0xa6, 0xff];
-  const fg = [0x10, 0x11, 0x13];
-  const radius = maskable ? 0 : size * 0.22;
-  // play triangle geometry (safe zone for maskable: inner 80%)
-  const cx = size / 2;
-  const cy = size / 2;
-  const s = maskable ? size * 0.26 : size * 0.3;
-  const x0 = cx - s * 0.55;
-  const x1 = cx + s * 0.75;
-  const half = s * 0.72;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let inside = true;
-      if (radius > 0) {
-        const dx = Math.max(radius - x, x - (size - 1 - radius), 0);
-        const dy = Math.max(radius - y, y - (size - 1 - radius), 0);
-        inside = dx * dx + dy * dy <= radius * radius;
-      }
-      let color = inside ? bg : [0, 0, 0];
-      let alpha = inside ? 255 : 0;
-      // triangle: x from x0..x1, half-height shrinks linearly
-      if (x >= x0 && x <= x1) {
-        const t = (x - x0) / (x1 - x0);
-        if (Math.abs(y - cy) <= half * (1 - t)) {
-          color = fg;
-          alpha = 255;
-        }
-      }
-      const i = (y * size + x) * 4;
-      buf[i] = color[0];
-      buf[i + 1] = color[1];
-      buf[i + 2] = color[2];
-      buf[i + 3] = alpha;
-    }
-  }
-  return encodePng(size, size, buf);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const profile = await fsp.mkdtemp(path.join(os.tmpdir(), 'reelkeep-icons-'));
+const work = await fsp.mkdtemp(path.join(os.tmpdir(), 'reelkeep-icons-work-'));
+const browser = spawn(chrome, [
+  '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
+  '--no-first-run', '--hide-scrollbars', '--force-device-scale-factor=1', 'about:blank',
+]);
+browser.stderr.on('data', () => {});
+
+async function connect(wsUrl) {
+  const ws = new WebSocket(wsUrl);
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+  let id = 1;
+  const pend = new Map();
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.id && pend.has(m.id)) { pend.get(m.id)(m.result); pend.delete(m.id); }
+  };
+  const send = (method, params = {}) => new Promise((res) => { const i = id++; pend.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
+  const evaluate = (expression) => send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  return { send, evaluate, close: () => ws.close() };
 }
 
-for (const size of [16, 32, 48, 128, 192, 512]) {
-  fs.writeFileSync(path.join(OUT, `icon-${size}.png`), draw(size));
+try {
+  const portFile = path.join(profile, 'DevToolsActivePort');
+  for (let i = 0; i < 60 && !fs.existsSync(portFile); i++) await sleep(200);
+  const port = Number((await fsp.readFile(portFile, 'utf8')).split('\n')[0]);
+  const svgUrl = pathToFileURL(SVG).href;
+
+  async function render(size, file, opaque) {
+    const wrapper = path.join(work, `w-${size}-${opaque ? 'm' : 't'}.html`);
+    await fsp.writeFile(
+      wrapper,
+      `<body style="margin:0;${opaque ? 'background:#1b1b22;' : ''}"><img src="${svgUrl}" width="${size}" height="${size}" style="display:block">`,
+    );
+    const target = await (await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(pathToFileURL(wrapper).href)}`, { method: 'PUT' })).json();
+    const tab = await connect(target.webSocketDebuggerUrl);
+    await tab.send('Page.enable');
+    await tab.send('Emulation.setDeviceMetricsOverride', { width: size, height: size, deviceScaleFactor: 1, mobile: false });
+    if (!opaque) await tab.send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
+    await tab.evaluate(`document.images[0].decode().then(() => true)`);
+    await sleep(120);
+    const { data } = await tab.send('Page.captureScreenshot', { format: 'png' });
+    await fsp.writeFile(path.join(OUT, file), Buffer.from(data, 'base64'));
+    console.log(`  icons/${file}`);
+    tab.close();
+    await fetch(`http://127.0.0.1:${port}/json/close/${target.id}`);
+  }
+
+  for (const size of SIZES) await render(size, `icon-${size}.png`, false);
+  // maskable: full-bleed tile; the bookmark glyph sits inside the 80% safe zone
+  await render(512, 'maskable-512.png', true);
+  console.log('icons rasterized from icons/icon.svg');
+} finally {
+  browser.kill();
+  await sleep(300);
+  await fsp.rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  await fsp.rm(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
-fs.writeFileSync(path.join(OUT, 'maskable-512.png'), draw(512, { maskable: true }));
-console.log('icons written: 16, 32, 48, 128, 192, 512 + maskable-512');

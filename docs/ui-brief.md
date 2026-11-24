@@ -75,9 +75,13 @@ blue. Execute these decisions exactly:
    for everything technical**: brand wordmark, counts, durations, timestamps, hosts,
    tags, folder badges, kinds, kbd, footer, micro-labels. Micro-labels are uppercase
    mono 10–11px with 0.08–0.12em tracking. Tabular numerals on all numeric slates.
-4. **Brand lockup:** small squared hairline tile with accent glyph + `REELKEEP`
-   letterspaced uppercase mono wordmark + mono count beneath. No rounded gradient tile,
-   no sans logotype.
+4. **Brand lockup:** the project icon (`icons/icon.svg`, owner-supplied v2.6.1:
+   cream bookmark with a play cutout on a charcoal `#1b1b22` tile, rx ≈ 22%) as a
+   28px mark + `REELKEEP` letterspaced uppercase mono wordmark + mono count
+   beneath. The mark carries its own tile — no extra border or background around
+   it, and it stays constant across themes. PNG sizes are rasterized from the SVG
+   by `scripts/gen-icons.mjs` (headless Chrome/Edge, zero deps); never hand-draw a
+   substitute mark. No rounded gradient tile, no sans logotype.
 5. **Accent:** one broadcast blue (`--accent: #58a6ff`), used sparingly: primary action
    (dark text on blue for contrast), active filters/toggles, focus, selection, drag
    targets. **Not** startup indigo/violet. Status hues stay separate: green = live
