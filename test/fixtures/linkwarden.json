@@ -1,0 +1,12 @@
+{
+  "links": [
+    {
+      "url": "https://example.com/lw",
+      "name": "Linkwarden link",
+      "description": "desc",
+      "tags": [{ "name": "lw" }],
+      "collection": { "name": "Col" },
+      "createdAt": "2026-02-02T00:00:00.000Z"
+    }
+  ]
+}

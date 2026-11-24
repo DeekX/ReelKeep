@@ -1,0 +1,14 @@
+{
+  "bookmarks": [
+    {
+      "content": { "type": "link", "url": "https://example.com/kara", "title": "Kara keep" },
+      "tags": [{ "name": "kara" }],
+      "note": "kept",
+      "createdAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "content": { "type": "video", "url": "https://www.youtube.com/watch?v=eRsGyueVLvQ", "title": "Sintel" },
+      "tags": []
+    }
+  ]
+}

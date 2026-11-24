@@ -5,8 +5,10 @@
 import { $, $$, esc, assetUrl, hostOf, parseUrl, parseTime, fmtTime, debounce, fmtBytes } from './util.mjs';
 import { toast, confirmBox } from './ui.mjs';
 import {
-  state, byId, patch, addItem, removeItem, getStorage, copyCover, enrichUrl, createFolder, snapshot, save as saveNow,
+  state, byId, patch, addItem, addBatch, rebuildIndex, normalizeUrl, removeItem, getStorage, copyCover, enrichUrl, createFolder, snapshot, save as saveNow,
 } from './library.mjs';
+import { toCsv, toBookmarksHtml } from './exporters.mjs';
+import { detectFormat, PARSERS } from './importers.mjs';
 import { PROVIDERS, detect, cleanTitle, normalizeEmbedUrl, providerLabel } from './providers.mjs';
 import { labelOf, allHandlers, detectType, coversOf } from './handlers/registry.mjs';
 import { canPickFrames } from './handlers/video.mjs';
@@ -513,7 +515,13 @@ function download(filename, text) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-$('#exportBtn').addEventListener('click', async () => {
+const exportDialog = $('#exportDialog');
+$('#exportBtn').addEventListener('click', () => exportDialog.showModal());
+exportDialog.addEventListener('click', (e) => {
+  if (e.target === exportDialog) exportDialog.close();
+});
+
+$('#exJson').addEventListener('click', async () => {
   const bundle = snapshot();
   const storage = getStorage();
   if (storage?.allFiles) {
@@ -524,6 +532,19 @@ $('#exportBtn').addEventListener('click', async () => {
     else toast(t('export.toobig'), 'err', 6000);
   }
   download('reelkeep-library.json', JSON.stringify(bundle, null, 2));
+  exportDialog.close();
+  toast(t('export.done'), 'ok');
+});
+
+$('#exCsv').addEventListener('click', () => {
+  download('reelkeep-library.csv', toCsv(state.items.filter((i) => !i.trashedAt)));
+  exportDialog.close();
+  toast(t('export.done'), 'ok');
+});
+
+$('#exHtml').addEventListener('click', () => {
+  download('reelkeep-bookmarks.html', toBookmarksHtml(state.items.filter((i) => !i.trashedAt), state.folders));
+  exportDialog.close();
   toast(t('export.done'), 'ok');
 });
 
@@ -536,28 +557,65 @@ $('#importFile').addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
   e.target.value = '';
   if (!file) return;
-  let parsed;
-  try {
-    parsed = JSON.parse(await file.text());
-  } catch {
+  const text = await file.text();
+  const fmt = detectFormat(text, file.name);
+  const haveIds = new Set(state.items.map((i) => i.id));
+  const haveUrls = new Set(state.items.map((i) => normalizeUrl(i.url)).filter(Boolean));
+  let preview;
+  if (fmt === 'reelkeep') {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return toast(t('import.bad'), 'err');
+    }
+    const res = migrateLibrary(parsed, { now: new Date().toISOString() });
+    if (res.invalid || res.readOnly) return toast(t('import.bad'), 'err');
+    const check = validateLibrary(res.data);
+    if (!check.ok) return toast(t('import.bad'), 'err');
+    const fresh = res.data.items.filter((i) => !haveIds.has(i.id) && !(normalizeUrl(i.url) && haveUrls.has(normalizeUrl(i.url))));
+    const newFolders = res.data.folders.filter((f) => !state.folders.some((x) => x.id === f.id));
+    pendingImport = { items: fresh, folders: newFolders, files: parsed.files || null };
+    preview = { n: res.data.items.length, added: fresh.length, dup: res.data.items.length - fresh.length, types: countTypes(fresh), errors: [] };
+  } else if (PARSERS[fmt]) {
+    const parsed = PARSERS[fmt](text);
+    const seen = new Set(haveUrls);
+    const fresh = [];
+    let dup = 0;
+    for (const input of parsed.items) {
+      const key = normalizeUrl(input.url);
+      if (key && seen.has(key)) {
+        dup++;
+        continue;
+      }
+      if (key) seen.add(key);
+      fresh.push(input);
+    }
+    pendingImport = { inputs: fresh, folders: [], files: null };
+    preview = { n: parsed.items.length, added: fresh.length, dup, types: countTypes(fresh), errors: parsed.errors };
+  } else {
     return toast(t('import.bad'), 'err');
   }
-  const res = migrateLibrary(parsed, { now: new Date().toISOString() });
-  if (res.invalid || res.readOnly) return toast(t('import.bad'), 'err');
-  const check = validateLibrary(res.data);
-  if (!check.ok) return toast(t('import.bad'), 'err');
-  const haveIds = new Set(state.items.map((i) => i.id));
-  const haveUrls = new Set(state.items.map((i) => i.url).filter(Boolean));
-  const fresh = res.data.items.filter((i) => !haveIds.has(i.id) && !(i.url && haveUrls.has(i.url)));
-  const dup = res.data.items.length - fresh.length;
-  const newFolders = res.data.folders.filter((f) => !state.folders.some((x) => x.id === f.id));
-  pendingImport = { items: fresh, folders: newFolders, files: parsed.files || null };
-  $('#imPreview').textContent = t('import.preview', { n: res.data.items.length, added: fresh.length, dup });
-  $('#imErrors').hidden = true;
-  $('#imOk').disabled = !fresh.length && !newFolders.length;
-  if (!fresh.length && !newFolders.length) $('#imPreview').textContent = t('import.none');
+  $('#imPreview').textContent = t('import.preview2', {
+    fmt,
+    n: preview.n,
+    added: preview.added,
+    dup: preview.dup,
+    types: preview.types || '—',
+  });
+  const errEl = $('#imErrors');
+  errEl.hidden = !preview.errors.length;
+  if (preview.errors.length) errEl.textContent = preview.errors.slice(0, 5).join(' · ');
+  $('#imOk').disabled = !preview.added && !(pendingImport.folders || []).length;
+  if (!preview.added && !(pendingImport.folders || []).length) $('#imPreview').textContent = t('import.none');
   importDialog.showModal();
 });
+
+function countTypes(list) {
+  const counts = new Map();
+  for (const i of list) counts.set(i.type, (counts.get(i.type) || 0) + 1);
+  return [...counts.entries()].map(([k, n]) => `${t('type.' + k)} ${n}`).join(', ');
+}
 
 $('#imOk').addEventListener('click', async () => {
   if (!pendingImport) return;
@@ -565,13 +623,18 @@ $('#imOk').addEventListener('click', async () => {
   const storage = getStorage();
   await storage?.createBackup?.('pre-import').catch(() => {});
   if (pendingImport.files && storage?.importFiles) await storage.importFiles(pendingImport.files);
-  state.folders = [...state.folders, ...pendingImport.folders];
-  state.items = [...pendingImport.items, ...state.items];
+  const added = pendingImport.inputs ? await addBatch(pendingImport.inputs) : pendingImport.items;
+  if (!pendingImport.inputs) {
+    state.folders = [...state.folders, ...pendingImport.folders];
+    state.items = [...pendingImport.items, ...state.items];
+    rebuildIndex();
+    saveNow();
+    render();
+  }
+  const n = added.length;
   pendingImport = null;
   importDialog.close();
-  saveNow();
-  render();
-  toast(t('import.done', { n: undoSnapshot ? state.items.length - undoSnapshot.items.length : 0 }), 'ok', 8000, {
+  toast(t('import.done', { n }), 'ok', 8000, {
     label: t('import.undo'),
     fn: () => {
       if (!undoSnapshot) return;

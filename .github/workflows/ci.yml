@@ -21,3 +21,13 @@ jobs:
       # Zero runtime dependencies: nothing to install, the suite uses node:test.
       - run: node scripts/check-syntax.mjs
       - run: npm test
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # 10k-item budget gate; Chrome is preinstalled on ubuntu runners
+      - run: node scripts/benchmark.mjs

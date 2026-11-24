@@ -30,7 +30,55 @@ export const state = {
   readOnly: false,
   rev: 0, // library revision, for multi-tab safety
   deleted: new Set(), // ids removed since the last load (merge tombstones)
+  smart: '', // '' | recent | opened | untagged | dups | trash | broken
 };
+
+/* Precomputed lowercase search text per item (indexed search at 10k scale). */
+let searchIndex = new Map();
+export function indexItem(item) {
+  const extra = getHandler(item.type)?.searchText?.(item) || '';
+  searchIndex.set(
+    item.id,
+    [item.title, item.notes, item.url, labelOf(item), extra, ...(item.tags || [])].join(' ').toLowerCase(),
+  );
+}
+export function rebuildIndex() {
+  searchIndex = new Map();
+  state.items.forEach(indexItem);
+}
+
+/** Canonical URL for duplicate detection: scheme/host lowercased, no www/hash/
+    trailing slash, sorted query. */
+export function normalizeUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return '';
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    const params = [...u.searchParams.entries()].sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+    const q = params.length ? '?' + params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&') : '';
+    return `${u.protocol}//${host}${path}${q}`;
+  } catch {
+    return '';
+  }
+}
+
+export function duplicateIds() {
+  const seen = new Map();
+  for (const it of state.items) {
+    if (it.trashedAt) continue;
+    const key = normalizeUrl(it.url);
+    if (!key) continue;
+    seen.set(key, (seen.get(key) || 0) + 1);
+  }
+  const out = new Set();
+  for (const it of state.items) {
+    if (it.trashedAt) continue;
+    const key = normalizeUrl(it.url);
+    if (key && seen.get(key) > 1) out.add(it.id);
+  }
+  return out;
+}
 
 let storage = null;
 let meta = null;
@@ -58,6 +106,7 @@ export async function initLibrary(st) {
   state.readOnly = !!res.readOnly; // newer-schema library; offline is tracked on the adapter
   state.rev = res.data?.rev || 0;
   state.deleted.clear();
+  rebuildIndex();
   if (res.changed && storage.id !== 'server') {
     // the server backs up its own migrations; browser storage backs up here
     await storage.createBackup('pre-migration').catch(() => {});
@@ -97,6 +146,7 @@ export function mergeRemote(remote) {
   state.folders = [...rFolders.values()];
   state.rev = remote.rev || 0;
   state.deleted.clear();
+  rebuildIndex();
 }
 
 /** Object URLs for handle-based adapters must be created async; warm them so
@@ -158,6 +208,7 @@ const persist = debounce(async () => {
       state.items = res.data.items || [];
       state.folders = res.data.folders || [];
       state.rev = res.data?.rev || 0;
+      rebuildIndex();
       onChange();
     } catch {
       /* storage unreachable — the error toast already told the user */
@@ -196,6 +247,7 @@ export function patch(id, data, rerender = true) {
     if (d) item.data = { ...item.data, ...d };
     item.updatedAt = nowIso();
   }
+  indexItem(item);
   save();
   if (rerender) onChange();
   return item;
@@ -205,13 +257,25 @@ export async function addItem(input) {
   const handler = getHandler(input.type || 'video') || getHandler('link');
   const item = await handler.create(input, {});
   state.items.unshift(item);
+  indexItem(item);
   await warmFileUrls();
   save();
   onChange();
   return item;
 }
 
+/** Delete = move to recoverable trash; permanent removal is purgeItem. */
 export async function removeItem(id) {
+  const item = byId(id);
+  if (!item) return;
+  item.trashedAt = nowIso();
+  item.updatedAt = nowIso();
+  state.selected.delete(id);
+  save();
+  onChange();
+}
+
+export async function purgeItem(id) {
   const item = byId(id);
   if (!item) return;
   if (item.cover?.kind === 'file' && /^thumbnails\//.test(item.cover.path || '') && storage) {
@@ -220,8 +284,41 @@ export async function removeItem(id) {
   state.items = state.items.filter((v) => v.id !== id);
   state.selected.delete(id);
   state.deleted.add(id);
+  searchIndex.delete(id);
   save();
   onChange();
+}
+
+export function restoreItem(id) {
+  const item = byId(id);
+  if (!item) return;
+  item.trashedAt = null;
+  item.updatedAt = nowIso();
+  save();
+  onChange();
+}
+
+export async function purgeExpiredTrash(days = 30) {
+  const cutoff = Date.now() - days * 86400000;
+  const expired = state.items.filter((v) => v.trashedAt && Date.parse(v.trashedAt) < cutoff);
+  for (const v of expired) await purgeItem(v.id);
+  return expired.length;
+}
+
+/** Import batch: one save, one undo unit. */
+export async function addBatch(inputs) {
+  const created = [];
+  for (const input of inputs) {
+    const handler = getHandler(input.type || 'link') || getHandler('link');
+    const item = await handler.create(input, {});
+    created.push(item);
+    indexItem(item);
+  }
+  state.items = [...created, ...state.items];
+  await warmFileUrls();
+  save();
+  onChange();
+  return created;
 }
 
 export function moveItems(ids, folderId) {
@@ -302,14 +399,23 @@ export async function copyCover(url, referer) {
 
 export function matches(item, tokens) {
   if (!tokens.length) return true;
-  const extra = getHandler(item.type)?.searchText?.(item) || '';
-  const hay = [item.title, item.notes, item.url, labelOf(item), extra, ...(item.tags || [])].join(' ').toLowerCase();
+  const hay = searchIndex.get(item.id) ?? '';
   return tokens.every((tok) => hay.includes(tok));
 }
 
 export function visibleItems() {
   const tokens = state.tokens;
+  const dups = state.smart === 'dups' ? duplicateIds() : null;
+  const week = Date.now() - 7 * 86400000;
   const list = state.items.filter((v) => {
+    const trashed = !!v.trashedAt;
+    if (state.smart === 'trash') return trashed;
+    if (trashed) return false;
+    if (state.smart === 'recent' && Date.parse(v.createdAt || 0) < week) return false;
+    if (state.smart === 'opened' && !v.lastOpenedAt) return false;
+    if (state.smart === 'untagged' && (v.tags || []).length) return false;
+    if (state.smart === 'dups' && !dups.has(v.id)) return false;
+    if (state.smart === 'broken' && v.data?.linkStatus !== 'dead') return false;
     if (state.folder === 'unfiled' && v.folderId) return false;
     if (state.folder !== 'all' && state.folder !== 'unfiled' && v.folderId !== state.folder) return false;
     if (state.provider && sourceKeyOf(v) !== state.provider) return false;
@@ -323,6 +429,6 @@ export function visibleItems() {
     title: (a, b) => (a.title || '').localeCompare(b.title || ''),
     opened: (a, b) => new Date(b.lastOpenedAt || 0) - new Date(a.lastOpenedAt || 0),
     duration: (a, b) => (b.data?.duration || 0) - (a.data?.duration || 0),
-  }[state.sort];
+  }[state.smart === 'opened' ? 'opened' : state.sort];
   return list.sort(cmp);
 }

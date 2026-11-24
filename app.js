@@ -4,7 +4,7 @@
 
 import { $, $$, esc } from './js/util.mjs';
 import { toast } from './js/ui.mjs';
-import { state, byId, patch, addItem, removeItem, initLibrary, setOnChange, flushSave, getStorage, warmFileUrls, snapshot } from './js/library.mjs';
+import { state, byId, patch, addItem, removeItem, restoreItem, purgeItem, purgeExpiredTrash, initLibrary, setOnChange, flushSave, getStorage, warmFileUrls, snapshot, visibleItems } from './js/library.mjs';
 import { createServerStorage, createLocalStorage } from './js/storage.mjs';
 import {
   createFolderStorage, createOpfsStorage, hasOpfs, hasFolderPicker,
@@ -87,6 +87,10 @@ $('#grid').addEventListener('click', (e) => {
   const v = byId(card.dataset.id);
   if (state.selecting) return toggleSelect(v.id);
   const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'restore') return restoreItem(v.id);
+  if (act === 'purge') {
+    return confirmBox(t('trash.purge.title'), t('trash.purge.text')).then((yes) => yes && purgeItem(v.id));
+  }
   if (act === 'edit') return openEdit(v.id);
   if (act === 'del') {
     return confirmBox(t('cf.title'), t('cf.card', { title: v.title })).then(async (yes) => {
@@ -135,6 +139,39 @@ $('#typeSel').addEventListener('change', (e) => {
   state.limit = 60;
   render();
 });
+
+$('#smartbar').addEventListener('click', (e) => {
+  if (e.target.closest('#checkLinks')) return checkLinks();
+  const chip = e.target.closest('[data-smart]');
+  if (!chip) return;
+  state.smart = chip.dataset.smart;
+  state.limit = 60;
+  render();
+});
+
+/* opt-in, rate-limited link health check (companion only) */
+async function checkLinks() {
+  if (state.backend !== 'remote') return toast(t('check.needserver'), 'err');
+  const targets = visibleItems().filter((v) => v.url && /^https?:/.test(v.url)).slice(0, 50);
+  if (!targets.length) return;
+  toast(t('check.running', { n: targets.length }), '', 4000);
+  try {
+    const res = await fetch('/api/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: targets.map((v) => v.url) }),
+    });
+    const { results } = await res.json();
+    targets.forEach((v, i) => {
+      const r = results[i];
+      if (r) patch(v.id, { data: { linkStatus: r.ok ? 'ok' : 'dead', linkCheckedAt: new Date().toISOString() } }, false);
+    });
+    render();
+    toast(t('check.done', { dead: results.filter((r) => !r.ok).length }), 'ok');
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
 
 $('#tagbar').addEventListener('click', (e) => {
   if (e.target.closest('[data-tagreset]')) {
@@ -424,9 +461,17 @@ async function boot() {
       /* offline — an empty gallery is fine */
     }
   }
+  let trashDays = 30;
+  try {
+    trashDays = Number(localStorage.getItem('reelkeep.trashDays')) || 30;
+  } catch {
+    /* default */
+  }
+  await purgeExpiredTrash(trashDays);
   await warmFileUrls();
   render();
   initHandoff();
+  if (/(^|\.)github\.io$/.test(location.hostname)) $('#demoBanner').hidden = false;
   // give playable videos without a cover their default frame (the opening shot)
   const missing = state.items
     .filter((v) => v.type === 'video' && v.data?.kind === 'file' && (!v.cover || v.cover.kind === 'none'))

@@ -1,0 +1,9 @@
+[
+  {
+    "snippet": { "title": "My playlist" },
+    "playlistItems": [
+      { "snippet": { "title": "Sintel", "resourceId": { "videoId": "eRsGyueVLvQ" }, "publishedAt": "2026-02-03T00:00:00.000Z" } },
+      { "snippet": { "title": "Broken entry" } }
+    ]
+  }
+]

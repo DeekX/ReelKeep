@@ -4,7 +4,7 @@
 import { hostOf } from './util.mjs';
 
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '2.3.0';
+export const APP_VERSION = '2.4.0';
 export const ITEM_TYPES = ['video', 'audio', 'image', 'article', 'link', 'pdf', 'note', 'file'];
 
 export function newId(prefix = 'i') {
@@ -136,6 +136,7 @@ export function applyLegacyPatch(item, body) {
       case 'embedUrl': d.playerUrl = val || ''; break;
       case 'kind': case 'provider': case 'videoId': case 'fileUrl': case 'startAt': case 'duration': case 'favicon': case 'progress':
         d[k] = val; break;
+      case 'data': Object.assign(d, val || {}); break;
       default: item[k] = val; // unknown fields survive (forward compatibility)
     }
   }

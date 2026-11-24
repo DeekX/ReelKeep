@@ -3,7 +3,7 @@
 
 import { $, $$, esc, fmtTime, hostOf, assetUrl } from './util.mjs';
 import { relDate } from './ui.mjs';
-import { state, visibleItems, byId, getStorage, patch } from './library.mjs';
+import { state, visibleItems, byId, getStorage, patch, duplicateIds } from './library.mjs';
 import { labelOf, sourceKeyOf, stampOf, iconOf, playsOf, badgeOf } from './handlers/registry.mjs';
 import { PROVIDERS } from './providers.mjs';
 
@@ -39,13 +39,18 @@ export function cardHtml(v, tokens) {
     <div class="thumb">
       ${sel}
       <div class="ph"><svg><use href="${iconOf(v)}" /></svg></div>
-      ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" draggable="false" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+      ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" decoding="async" draggable="false" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
       <span class="badge">${badge}${label}</span>
       ${stamp ? `<span class="stamp">${esc(stamp)}</span>` : ''}
       ${playsOf(v) ? '<div class="thumb-play"><span><svg><use href="#i-play" /></svg></span></div>' : ''}
       <div class="card-actions">
-        <button class="icon-btn" data-act="edit" title="${esc(t('lb.edit'))}"><svg><use href="#i-edit" /></svg></button>
-        <button class="icon-btn" data-act="del" title="${esc(t('delete'))}"><svg><use href="#i-trash" /></svg></button>
+        ${
+          state.smart === 'trash'
+            ? `<button class="icon-btn" data-act="restore" title="${esc(t('trash.restore'))}"><svg><use href="#i-refresh" /></svg></button>
+               <button class="icon-btn" data-act="purge" title="${esc(t('trash.purge'))}"><svg><use href="#i-trash" /></svg></button>`
+            : `<button class="icon-btn" data-act="edit" title="${esc(t('lb.edit'))}"><svg><use href="#i-edit" /></svg></button>
+               <button class="icon-btn" data-act="del" title="${esc(t('delete'))}"><svg><use href="#i-trash" /></svg></button>`
+        }
       </div>
     </div>
     <div class="card-body">
@@ -80,6 +85,29 @@ export function renderProviders() {
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([k, label]) => `<option value="${esc(k)}"${k === keep ? ' selected' : ''}>${esc(label)}</option>`)
       .join('');
+}
+
+export function renderSmartbar() {
+  const counts = {
+    recent: state.items.filter((v) => !v.trashedAt && Date.parse(v.createdAt || 0) >= Date.now() - 7 * 86400000).length,
+    opened: state.items.filter((v) => !v.trashedAt && v.lastOpenedAt).length,
+    untagged: state.items.filter((v) => !v.trashedAt && !(v.tags || []).length).length,
+    dups: duplicateIds().size,
+    broken: state.items.filter((v) => !v.trashedAt && v.data?.linkStatus === 'dead').length,
+    trash: state.items.filter((v) => v.trashedAt).length,
+  };
+  const chip = (key, label, n) =>
+    `<button class="chip${state.smart === key ? ' on' : ''}" data-smart="${key}">${esc(label)}<small>${n}</small></button>`;
+  $('#smartbar').innerHTML =
+    `<span class="tagbar-label">${esc(t('smart.label'))}</span>` +
+    `<button class="chip${state.smart ? '' : ' on'}" data-smart="">${esc(t('smart.all'))}</button>` +
+    chip('recent', t('smart.recent'), counts.recent) +
+    chip('opened', t('smart.opened'), counts.opened) +
+    chip('untagged', t('smart.untagged'), counts.untagged) +
+    chip('dups', t('smart.dups'), counts.dups) +
+    chip('broken', t('smart.broken'), counts.broken) +
+    chip('trash', t('smart.trash'), counts.trash) +
+    (state.smart === 'broken' ? `<button class="chip newfolder" id="checkLinks"><svg class="fi"><use href="#i-refresh" /></svg>${esc(t('check.btn'))}</button>` : '');
 }
 
 export function renderTypes() {
@@ -150,6 +178,7 @@ export function render() {
     $('#emptyText').textContent = t('nomatch.text');
   }
   renderTagbar();
+  renderSmartbar();
   renderProviders();
   renderTypes();
   renderFolderbar();

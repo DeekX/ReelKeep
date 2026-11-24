@@ -1,0 +1,6 @@
+{
+  "list": {
+    "1": { "resolved_title": "Pocket item", "resolved_url": "https://example.com/pocket", "time_added": "1600000000", "tags": { "read": {} } },
+    "2": { "given_title": "Fallback title", "given_url": "https://example.com/given", "time_added": "1600000001" }
+  }
+}

@@ -100,11 +100,23 @@ Every type shares one card system, one search index, folders, tags, drag & drop,
 and the type filter next to the source filter. **Resume** is offered (never forced)
 for video and audio; the explicit *start at* point stays untouched.
 
-**Export / Import** (toolbar): full-fidelity JSON of the whole library. Import
-previews counts and duplicates, skips what you already have, and is undoable.
-In browser-only mode small stored files are inlined into the export so it
+**Export / Import** (toolbar): full-fidelity JSON, CSV, or Netscape HTML
+bookmarks. Import accepts ReelKeep JSON plus browser bookmarks, Raindrop CSV,
+Pocket, Karakeep, Linkwarden, YouTube Takeout playlists and plain URL lists —
+always with a preview (counts, duplicates, errors), always undoable.
+In browser-only mode small stored files are inlined into the JSON export so it
 round-trips alone; larger bundles belong to server mode, where `files/` and
-`thumbnails/` sit next to `library.json` on disk.
+`thumbnails/` sit next to `library.json` on disk. See
+[docs/import-export.md](docs/import-export.md).
+
+**Smart views & trash**: Recent, Opened, Untagged, Duplicates, Broken and Trash
+chips with live counts. Deleting moves items to a recoverable trash (auto-purge
+after 30 days); *Check links* (opt-in, companion only) marks dead links.
+Rolling backups guard migrations, imports and bulk deletes.
+
+**Scale**: indexed search and offscreen culling keep 10,000 items smooth —
+benchmark-gated in CI (~0.6 s boot, ~90 ms search;
+[docs/performance.md](docs/performance.md)).
 
 ## Save from your browser
 
@@ -237,7 +249,9 @@ folders; the library JSON and repo internals are never reachable over the networ
 ```sh
 npm test              # node:test suites — no dependencies to install
 npm run check         # syntax-check every script (also runs in CI)
+npm run build:ext     # assemble the MV3 extension builds
 npm run screenshot    # refresh docs/screenshot-*.png (Node 22+, Chrome installed)
+node scripts/benchmark.mjs   # 10k-item performance budget (Chrome installed)
 ```
 
 CI runs the suite on Linux, macOS and Windows against Node 18, 20 and 22.

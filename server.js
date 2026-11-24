@@ -798,6 +798,29 @@ const server = http.createServer(async (req, res) => {
         return send(res, 201, { path: rel, size, mime: mime || MIME[ext] || 'application/octet-stream' });
       }
 
+      /* Opt-in link health check: capped batch, two concurrent probes, HEAD. */
+      if (p === '/api/check' && req.method === 'POST') {
+        const { urls } = await readJson(req);
+        if (!Array.isArray(urls)) return send(res, 400, { error: 'urls must be an array' });
+        const list = urls.slice(0, 50).map(String);
+        const results = new Map();
+        let i = 0;
+        const worker = async () => {
+          while (i < list.length) {
+            const u = list[i++];
+            try {
+              const { res: probe } = await safeFetch(u, { timeoutMs: 8000, method: 'HEAD' });
+              probe.body?.cancel().catch(() => {});
+              results.set(u, { url: u, ok: probe.status < 400 || probe.status === 405, status: probe.status });
+            } catch (e) {
+              results.set(u, { url: u, ok: false, status: e.status || 0 });
+            }
+          }
+        };
+        await Promise.all([worker(), worker()]);
+        return send(res, 200, { results: list.map((u) => results.get(u)) });
+      }
+
       /* Opt-in reader snapshot: text blocks only, sanitized by construction. */
       if (p === '/api/snapshot' && req.method === 'POST') {
         const { url: target } = await readJson(req);

@@ -83,6 +83,11 @@
       </div>
     </header>
 
+    <div id="demoBanner" class="demobanner" hidden>
+      <span data-i18n="demo.banner">Demo mode — edits stay in this browser.</span>
+      <a href="https://github.com/DeekX/ReelKeep" target="_blank" rel="noopener" data-i18n="demo.repo">Get the full app on GitHub</a>
+    </div>
+
     <section class="libhead">
       <div class="libhead-title">
         <div class="libhead-row">
@@ -114,7 +119,7 @@
         </select>
         <button type="button" class="btn tool" id="exportBtn" title="Export library" data-i18n-title="export.btn"><svg><use href="#i-download" /></svg> <span data-i18n="export.btn">Export</span></button>
         <button type="button" class="btn tool" id="importBtn" title="Import library" data-i18n-title="import.btn"><svg><use href="#i-upload" /></svg> <span data-i18n="import.btn">Import</span></button>
-        <input id="importFile" type="file" accept="application/json,.json" hidden />
+        <input id="importFile" type="file" accept=".json,.html,.htm,.csv,.txt,application/json,text/html,text/csv,text/plain" hidden />
       </div>
     </section>
 
@@ -137,6 +142,8 @@
     </div>
 
     <nav id="tagbar" class="tagbar" aria-label="Tag filters"></nav>
+
+    <nav id="smartbar" class="tagbar smartbar" aria-label="Smart views"></nav>
 
     <main id="grid" class="grid" aria-live="polite"></main>
 
@@ -460,6 +467,26 @@
       <span class="sep">·</span>
       <span id="tip">Tip: double-click a title to rename it, press <kbd>/</kbd> to search</span>
     </footer>
+
+    <!-- ---------------------------------------------------- export -->
+    <dialog id="exportDialog" class="modal tiny">
+      <div class="modal-form">
+        <header class="modal-head">
+          <div class="modal-head-row"><h2 data-i18n="export.title">Export library</h2></div>
+        </header>
+        <div class="modal-body">
+          <div class="mode-list">
+            <button type="button" class="mode-opt" id="exJson"><span class="grow"><b data-i18n="export.json">JSON (full fidelity)</b><small data-i18n="export.json.sub">library.json + inlined small files in browser mode</small></span></button>
+            <button type="button" class="mode-opt" id="exCsv"><span class="grow"><b data-i18n="export.csv">CSV</b><small data-i18n="export.csv.sub">spreadsheet-friendly</small></span></button>
+            <button type="button" class="mode-opt" id="exHtml"><span class="grow"><b data-i18n="export.html">HTML bookmarks</b><small data-i18n="export.html.sub">Netscape format — importable by any browser</small></span></button>
+          </div>
+        </div>
+        <footer class="modal-foot">
+          <div class="spacer"></div>
+          <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>
+        </footer>
+      </div>
+    </dialog>
 
     <!-- ---------------------------------------------------- login -->
     <dialog id="loginDialog" class="modal tiny">

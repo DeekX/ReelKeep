@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.4.0] - 2026-11-24
+
+Scale, portability and polish (roadmap Phase 6).
+
+### Added
+- **Importers** with preview, dedupe and undo: browser bookmarks HTML,
+  Raindrop CSV, Pocket (HTML/JSON), Karakeep, Linkwarden, YouTube Takeout
+  playlists, plain URL lists. Pure hostile-safe parsers + fixtures + tests.
+- **Exporters**: CSV and Netscape HTML bookmarks alongside full-fidelity JSON.
+- **Trash**: deletes move to a recoverable trash with auto-purge (30 days
+  default); restore / delete-forever actions; expiry purge at boot.
+- **Smart views**: Recent, Opened, Untagged, Duplicates (normalized URL),
+  Broken, Trash — with live counts.
+- **Opt-in link health check** (`/api/check`, capped batch, two concurrent
+  SSRF-guarded HEAD probes) feeding the Broken view.
+- **Rolling backups** before risky operations, configurable window
+  (`REELKEEP_BACKUPS_KEEP`, default 10).
+- **Performance**: precomputed search index, `content-visibility` offscreen
+  culling, `decoding="async"` covers; `scripts/benchmark.mjs` 10k-item budget
+  gate in CI. Measured: 598 ms boot, 90 ms search at 10,000 items
+  (`docs/performance.md`).
+- Demo seeds every item type and shows a demo banner + repo link.
+- Docs: `import-export.md`, `faq.md`, `performance.md`, public `ROADMAP.md`,
+  `CODE_OF_CONDUCT.md`, translation issue template.
+
+### Changed
+- Delete confirmations now describe the trash honestly, in all 11 languages.
+
 ## [2.3.0] - 2026-11-24
 
 Companion-server hardening (roadmap Phase 5). Archiving stays deferred by

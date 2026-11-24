@@ -744,6 +744,22 @@ input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; border-radius: 
   .row { gap: 12px; }
   .field.short { flex: 1 1 140px; }
 }
+/* ============================================ demo banner */
+.demobanner {
+  display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  font: 11.5px var(--mono); color: var(--muted);
+}
+.demobanner a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--line); }
+.demobanner a:hover { border-color: var(--accent); }
+
+/* ============================================ scale: offscreen culling */
+/* Browser-native windowing: offscreen cards skip layout/paint, so 10k-item
+   libraries stay smooth without a virtual-scroll rewrite. Fallback = normal. */
+.card { content-visibility: auto; contain-intrinsic-size: 320px 268px; }
+.grid.list .card { contain-intrinsic-size: auto 112px; }
+.smartbar { padding-top: 0; }
+
 /* ============================================ storage mode */
 .foot-mode {
   border: 0; background: none; padding: 2px 6px; margin-inline-start: 2px;

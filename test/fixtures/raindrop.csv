@@ -1,0 +1,5 @@
+id,title,note,excerpt,cover,url,folder,tags,created,important
+1,"Rain, drop","my note","",,"https://example.com/rain","Reading","tag1,tag2",2026-01-02T03:04:05.000Z,false
+2,"Quoted, title","",,"","https://example.com/quoted","Reading","",2026-01-03T03:04:05.000Z,true
+3,"Multi
+line","",,"","https://example.com/multi","","",2026-01-04T03:04:05.000Z,false
