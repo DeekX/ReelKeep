@@ -113,11 +113,15 @@ blue. Execute these decisions exactly:
     heading row ("Your library" + count + tagline) carrying **five** labeled controls:
     Select, view toggle, sort, **Filters** popover (Group toggle + source + type),
     **More** popover (Export, Import). A dot on Filters marks active filters.
-    Below: three single-row quiet filter strips (folders / tags / smart views),
-    text chips in one scrollable row with an end fade; boxes only for
-    hover/active/drag. Mobile collapses the five controls into an overflow menu
-    where popovers unfold inline. Never add a sixth toolbar control or a fourth
-    strip — put it in a popover or a strip.
+    Below: **one filter console row** (v2.6.0) — three scrollable segments
+    separated by hairlines: FOLDERS | TAGS | VIEWS, each with its mono micro-label
+    and an end fade. **Selection grammar:** checkbox square = multi-select (tags,
+    match-all, live "· n" count in the label), dot = single-select (views),
+    accent tint = navigation (folders). ≤900px: folders keep a full row and
+    tags+views share the second row side by side — never three stacked rows.
+    Mobile collapses the five toolbar controls into an overflow menu where
+    popovers unfold inline. Never add a sixth toolbar control or a fourth
+    segment — put it in a popover or an existing segment.
 
 **Two themes, one identity.** Dark is the screening room; light ("paper") obeys the
 same corners, hairlines, mono slates and single accent, darkened for AA on paper
@@ -173,10 +177,14 @@ Type scale: body 13, card title 13 (list 15), dialog h2 15, micro 10–11 mono, 
   `#filtersBtn`→`#filtersPop` (contains `#groupBtn`, `#providerSel`, `#typeSel`),
   `#moreBtn`→`#morePop` (contains `#exportBtn`, `#importBtn`). Popovers are floating
   panels (shadow allowed); on mobile they unfold inline inside the overflow panel.
-- **Filter strips** (`#folderbar`, `#tagbar`, `#smartbar`): one quiet register,
-  single scrollable row, end fade; `flex: none` is required — `overflow-x: auto`
-  removes the automatic minimum size and the body column would shrink them to
-  slivers (v2.5.0 regression, fixed).
+- **Filter console** (`.filterconsole` wrapping `#folderbar`, `#tagbar`,
+  `#smartbar`): one row, three scrollable segments with hairline dividers and end
+  fades; quiet text chips, boxes only for hover/active/drag. Tag chips carry a
+  checkbox square (`.box`, multi-select, `aria-pressed`), view chips a dot
+  (`.rad`, single-select). `flex: none` on the strips is required —
+  `overflow-x: auto` removes the automatic minimum size and the body column
+  would shrink them to slivers (v2.5.0 regression, fixed). The conditional
+  `#folderActions` / `#selectbar` bars live OUTSIDE the console wrapper.
 - **Folder bar** (`#folderbar`): squared chips *All videos*, *Unfiled*, folders (icon +
   name + mono count), dashed *New folder*; folder chips are comfortable at rest
   (6px/12px padding, 12.5px). **Drop targets**: while dragging (`body.drag-ids`) the bar

@@ -54,3 +54,16 @@ test('snapshot bumps the revision; init reads it back', async () => {
   lib.state.rev = 7;
   assert.equal(lib.snapshot().rev, 8);
 });
+
+test('tag filter is multi-select with match-all semantics', async () => {
+  const lib = await load('js/library.mjs');
+  const mk = (id, tags) => ({ id, type: 'note', title: id, url: '', tags, notes: '', createdAt: '2026-11-24T00:00:00.000Z', updatedAt: '2026-11-24T00:00:00.000Z', data: { body: 'x' } });
+  lib.state.items = [mk('i_ab', ['a', 'b']), mk('i_a', ['a']), mk('i_b', ['b']), mk('i_none', [])];
+  lib.state.folders = [];
+  lib.state.tags = new Set(['a']);
+  assert.deepEqual(lib.visibleItems().map((i) => i.id), ['i_ab', 'i_a']);
+  lib.state.tags = new Set(['a', 'b']);
+  assert.deepEqual(lib.visibleItems().map((i) => i.id), ['i_ab']);
+  lib.state.tags = new Set();
+  assert.equal(lib.visibleItems().length, 4);
+});

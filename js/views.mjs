@@ -65,12 +65,16 @@ export function renderTagbar() {
   const counts = new Map();
   state.items.forEach((v) => (v.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1)));
   const bar = $('#tagbar');
+  // checkbox squares advertise multi-select; the label carries the live count
   bar.innerHTML =
-    `<span class="tagbar-label">${esc(t('tags.label'))}</span>` +
+    `<span class="tagbar-label" title="${esc(t('tags.multi'))}">${esc(t('tags.label'))}${state.tags.size ? ` · ${state.tags.size}` : ''}</span>` +
     `<button class="chip${state.tags.size ? '' : ' on'}" data-tagreset="1">${esc(t('tags.all'))}</button>` +
     [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([tag, n]) => `<button class="chip${state.tags.has(tag) ? ' on' : ''}" data-tag="${esc(tag)}">#${esc(tag)}<small>${n}</small></button>`)
+      .map(
+        ([tag, n]) =>
+          `<button class="chip${state.tags.has(tag) ? ' on' : ''}" data-tag="${esc(tag)}" aria-pressed="${state.tags.has(tag)}"><span class="box"><svg><use href="#i-check" /></svg></span>#${esc(tag)}<small>${n}</small></button>`,
+      )
       .join('');
 }
 
@@ -96,11 +100,12 @@ export function renderSmartbar() {
     broken: state.items.filter((v) => !v.trashedAt && v.data?.linkStatus === 'dead').length,
     trash: state.items.filter((v) => v.trashedAt).length,
   };
+  // dots advertise single-select, contrasting the tags' multi-select squares
   const chip = (key, label, n) =>
-    `<button class="chip${state.smart === key ? ' on' : ''}" data-smart="${key}">${esc(label)}<small>${n}</small></button>`;
+    `<button class="chip${state.smart === key ? ' on' : ''}" data-smart="${key}" aria-pressed="${state.smart === key}"><span class="rad"></span>${esc(label)}<small>${n}</small></button>`;
   $('#smartbar').innerHTML =
     `<span class="tagbar-label">${esc(t('smart.label'))}</span>` +
-    `<button class="chip${state.smart ? '' : ' on'}" data-smart="">${esc(t('smart.all'))}</button>` +
+    `<button class="chip${state.smart ? '' : ' on'}" data-smart="" aria-pressed="${!state.smart}"><span class="rad"></span>${esc(t('smart.all'))}</button>` +
     chip('recent', t('smart.recent'), counts.recent) +
     chip('opened', t('smart.opened'), counts.opened) +
     chip('untagged', t('smart.untagged'), counts.untagged) +

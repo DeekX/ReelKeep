@@ -245,6 +245,27 @@ select:hover { color: var(--text); border-color: var(--line-strong); }
 .icon-btn:hover { background: var(--panel-2); border-color: var(--line); color: var(--text); }
 .icon-btn.on { background: var(--accent-tint); border-color: var(--accent-line); color: var(--accent-soft); }
 
+/* ======================================================= filter console */
+/* One row, three scrollable segments separated by hairlines: folders | tags |
+   views. Selection grammar: checkbox square = multi (tags), dot = single
+   (views), tint = navigation (folders). ≤900px: folders full row, tags+views
+   share the second row side by side. */
+.filterconsole { display: flex; align-items: stretch; padding: 0 clamp(16px, 3vw, 36px); }
+.filterconsole .tagbar { flex: 1 1 0; min-width: 0; padding: 2px 14px; border-inline-end: 1px solid var(--line-soft); }
+.filterconsole .tagbar:first-child { padding-inline-start: 0; }
+.filterconsole .tagbar:last-child { border-inline-end: 0; padding-inline-end: 0; }
+.filterconsole .folderbar { flex: 1.3 1 0; }
+.filterconsole .tagbar:not(.folderbar):not(.smartbar) { flex: 1.6 1 0; }
+/* checkbox squares (multi-select) and dots (single-select) */
+.chip .box {
+  flex: none; width: 12px; height: 12px; border: 1px solid var(--line-strong); border-radius: 3px;
+  display: grid; place-items: center; color: transparent;
+}
+.chip .box svg { width: 9px; height: 9px; }
+.chip.on .box { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip .rad { flex: none; width: 10px; height: 10px; border: 1px solid var(--line-strong); border-radius: 50%; }
+.chip.on .rad { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--bg); }
+
 /* ======================================================= filter strips */
 /* One quiet register for all three strips: text chips in a single scrollable
    row (end fade signals overflow), boxes only for hover/active/drag states. */
@@ -785,6 +806,11 @@ input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; border-radius: 
   .preview-thumb { flex: none; width: 100%; max-width: 300px; height: auto; aspect-ratio: 16 / 9; }
   .edit-body { flex-direction: column; }
   .preview-thumb.lg { width: 100%; max-width: 320px; flex: none; }
+  /* folders keep a full row; tags and views sit side by side below */
+  .filterconsole { flex-wrap: wrap; }
+  .filterconsole .folderbar { flex: 1 1 100%; border-inline-end: 0; border-bottom: 1px solid var(--line-soft); padding-inline: 0; }
+  .filterconsole .tagbar:not(.folderbar) { flex: 1 1 50%; }
+  .filterconsole .smartbar { border-inline-end: 0; padding-inline-end: 0; }
 }
 @media (max-width: 700px) {
   .topbar { min-height: 68px; gap: 10px; padding-inline: 24px; }
@@ -812,10 +838,8 @@ input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; border-radius: 
   }
   .mobile-add svg { width: 20px; height: 20px; }
   .libhead { position: relative; }
-  .folderbar { flex-wrap: nowrap; overflow-x: auto; padding-inline: 24px; scrollbar-width: none; }
-  .folderbar::-webkit-scrollbar { display: none; }
-  .folderbar .chip { flex: none; }
-  .tagbar { padding-inline: 24px; }
+  .filterconsole { padding-inline: 24px; }
+  .filterconsole .folderbar { padding-inline: 0; }
   .grid { grid-template-columns: 1fr; gap: 16px; padding-inline: 24px; }
   .grid.list .card { flex-direction: column; height: auto; }
   .grid.list .thumb { width: auto; height: auto; aspect-ratio: 16 / 9; margin: 0; border: 0; border-radius: 0; border-bottom: 1px solid var(--line-soft); }

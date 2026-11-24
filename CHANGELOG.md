@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.6.0] - 2026-11-24
+
+The filter console: one row instead of three stacked strips, and multi-select
+tags that look multi-select.
+
+### Changed
+- **Filter console**: folders, tags and smart views now share ONE row as three
+  scrollable, hairline-separated segments (FOLDERS | TAGS | VIEWS) with mono
+  micro-labels and end fades. ≤900px: folders keep a full row, tags and views sit
+  side by side on a second row — never three stacked rows again.
+- **Selection grammar**: checkbox squares on tag chips (multi-select), dots on
+  view chips (single-select), accent tint for folder navigation. Tag selection
+  was always multi-select in logic; now it is unmistakable: checked squares,
+  `aria-pressed`, a live "TAGS · n" count and a translated hint (match-all).
+- Conditional folder/selection action bars moved outside the console wrapper so
+  they stay full-width.
+
+### Verified
+- Headless probe: all three segments on one row (identical offsets); selecting
+  two tags keeps both checked and filters with match-all; reset clears; mobile
+  two-row layout; RTL and light themes unaffected. 80/80 tests.
+
 ## [2.5.0] - 2026-11-24
 
 Calmer chrome and a first-class light theme. No behaviour or API changes.

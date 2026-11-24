@@ -142,7 +142,11 @@
       </div>
     </section>
 
-    <nav id="folderbar" class="tagbar folderbar" aria-label="Folders"></nav>
+    <div class="filterconsole">
+      <nav id="folderbar" class="tagbar folderbar" aria-label="Folders"></nav>
+      <nav id="tagbar" class="tagbar" aria-label="Tag filters"></nav>
+      <nav id="smartbar" class="tagbar smartbar" aria-label="Smart views"></nav>
+    </div>
 
     <div id="folderActions" class="selectbar" hidden>
       <svg class="fa-icon"><use href="#i-folder" /></svg>
@@ -159,10 +163,6 @@
       <button type="button" class="btn primary" id="selMove"><svg><use href="#i-folder" /></svg> <span data-i18n="sel.move">Move to folder…</span></button>
       <button type="button" class="btn" id="selClear" data-i18n="sel.done">Done</button>
     </div>
-
-    <nav id="tagbar" class="tagbar" aria-label="Tag filters"></nav>
-
-    <nav id="smartbar" class="tagbar smartbar" aria-label="Smart views"></nav>
 
     <main id="grid" class="grid" aria-live="polite"></main>
 

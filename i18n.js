@@ -3055,6 +3055,22 @@ const I18N_UI = {
 };
 for (const lang of Object.keys(I18N_UI)) Object.assign(I18N_LOCALES[lang], I18N_UI[lang]);
 
+/* Filter console: multi-select hint (v2.6.0). */
+const I18N_CONSOLE = {
+  en: { 'tags.multi': 'Tags are multi-select: an item must carry every selected tag.' },
+  ar: { 'tags.multi': 'الوسوم متعددة الاختيار: يجب أن يحمل العنصر كل وسم محدد.' },
+  ru: { 'tags.multi': 'Теги выбираются несколько: элемент должен содержать все выбранные теги.' },
+  fr: { 'tags.multi': 'Les étiquettes sont multi-sélection : l’élément doit porter toutes les étiquettes choisies.' },
+  de: { 'tags.multi': 'Tags sind mehrfach wählbar: Ein Element muss alle gewählten Tags tragen.' },
+  es: { 'tags.multi': 'Las etiquetas son de selección múltiple: el elemento debe tener todas las elegidas.' },
+  zh: { 'tags.multi': '标签可多选：条目须包含所有选中标签。' },
+  ja: { 'tags.multi': 'タグは複数選択：選択したすべてのタグを持つ項目が表示されます。' },
+  ko: { 'tags.multi': '태그는 다중 선택: 선택한 모든 태그를 가진 항목이 표시됩니다.' },
+  hi: { 'tags.multi': 'टैग बहु-चयन हैं: आइटम में सभी चुने गए टैग होने चाहिए।' },
+  tr: { 'tags.multi': 'Etiketler çoklu seçilir: öğe seçilen tüm etiketleri taşımalıdır.' },
+};
+for (const lang of Object.keys(I18N_CONSOLE)) Object.assign(I18N_LOCALES[lang], I18N_CONSOLE[lang]);
+
 const I18N_META = {
   en: { name: 'English', dir: 'ltr' },
   ar: { name: 'العربية', dir: 'rtl' },
