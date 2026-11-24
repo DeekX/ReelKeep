@@ -1,7 +1,8 @@
 # ReelKeep
 
-A local-first video library. Paste **any** video link, watch it in a unified player,
-give it the cover you want, and keep everything in a plain JSON file.
+A local-first library for everything you want to keep — videos, articles, images,
+audio, PDFs, notes and files. Paste **any** link, watch or read it in a unified
+viewer, give it the cover you want, and keep everything in a plain JSON file.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node >= 18](https://img.shields.io/badge/node-%E2%89%A5%2018-339933)](https://nodejs.org)
@@ -47,20 +48,48 @@ full experience. One honest limit: the UI is ES modules, which browsers refuse t
 load from `file://`, so double-clicking `index.html` no longer boots it — use the
 demo, any static server, or `node server.js`.
 
-## Adding videos — four ways
+## Adding items — four ways
+
+The add dialog detects the type from what you paste or drop, and lets you override it.
 
 1. **Link** — paste a URL from almost anywhere. The app recognises YouTube, Vimeo,
    Dailymotion, Twitch, TikTok, X/Twitter, Facebook, Instagram, Loom, Wistia,
    Streamable, Rutube and Internet Archive, and turns the link into a proper player URL.
-   For any *other* site it reads the page's own metadata to get the title, the default
-   cover image and, when the site exposes one, a direct video file.
+   For any *other* site it reads the page's own metadata (title, description, cover)
+   and saves it as an article; a link ending in `.mp4`, `.mp3`, `.png`, `.pdf`, …
+   becomes the matching media type.
 2. **Embed code** — paste the `<iframe …>` snippet from a site's *Share → Embed* dialog;
    the player URL is extracted from it. Use this when a site refuses to be framed.
-3. **Upload a file** — pick a video, or **drag and drop it anywhere on the page**. It is
-   stored in `videos/` and served locally.
-4. **Direct file URL** — a link ending in `.mp4`, `.webm`, `.mov`, … plays directly.
+3. **Upload a file** — pick any file, or **drag and drop it anywhere on the page**.
+   Videos land in `videos/`, everything else in `files/`, served by your own server.
+4. **Note** — write Markdown inside the app (headings, emphasis, lists, links, code,
+   quotes). Rendered by DOM construction, never as raw HTML.
 
 ![The add dialog: detected preview, folder choice, tags and notes](docs/screenshot-add.png)
+
+## Everything, not just video
+
+![A mixed library: links, articles, PDFs, audio, images and notes beside videos](docs/screenshot-types.png)
+
+| Type | Viewer |
+| --- | --- |
+| Video | unified player: provider embeds, direct files, frame-accurate covers, start times |
+| Article / link | metadata reader; opt-in **reader copy** stored locally (text only, sanitized) |
+| Image | zoom & pan viewer; the image is its own cover |
+| Audio | built-in player with 0.5–2× speed and remembered position |
+| PDF | the browser's viewer in a sandboxed frame |
+| Note | Markdown preview + editor |
+| File | icon, size, MIME, SHA-256; download or open |
+
+Every type shares one card system, one search index, folders, tags, drag & drop,
+and the type filter next to the source filter. **Resume** is offered (never forced)
+for video and audio; the explicit *start at* point stays untouched.
+
+**Export / Import** (toolbar): full-fidelity JSON of the whole library. Import
+previews counts and duplicates, skips what you already have, and is undoable.
+In browser-only mode small stored files are inlined into the export so it
+round-trips alone; larger bundles belong to server mode, where `files/` and
+`thumbnails/` sit next to `library.json` on disk.
 
 ## Covers and frame-accurate thumbnails
 

@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.0.0] - 2026-11-24
+
+The universal library: ReelKeep keeps everything now, not just video.
+Existing v1/v2 libraries load unchanged (migration tested, backed up).
+
+### Added
+- Six new item types, each with add/edit/search/tag/folder/delete/export/import,
+  grid + list cards, viewer, tests and translations: **article/link** (metadata
+  reader + opt-in local reader copy), **image** (zoom/pan), **audio** (player with
+  0.5–2× speed), **PDF** (sandboxed browser viewer), **note** (safe Markdown),
+  **file** (size/MIME/SHA-256, download).
+- Add dialog becomes **Add item**: type auto-detection from paste/drop with a
+  manual override, plus a Note tab. Type filter joins folder/tag/source filters.
+- **Resume position** for video and audio, offered as a chip — never forced;
+  explicit start-at points are preserved.
+- **Export / Import** toolbar actions: full-fidelity JSON, import preview with
+  duplicate detection, undoable imports, pre-import backups; browser-only
+  exports inline small files so the bundle round-trips alone.
+- Security (applies from the moment the features exist): SSRF defense on every
+  server-side fetch (DNS-resolved private-range blocking, connections pinned to
+  the validated IP, redirect re-validation, caps); cross-origin write refusal
+  (Origin/Host check); upload content sniffing; web-executable uploads refused;
+  reader snapshots stored as text blocks only (sanitized by construction);
+  security test suite in CI.
+- `POST /api/snapshot`, `POST /api/files` (generic intake), inline serving for
+  viewer-safe kinds (`?inline=1`), enrich now returns description/author/
+  publishedAt.
+- `docs/i18n-status.md`; aria-labels translated; ~60 new keys in all 11 languages.
+- `docs/screenshot-types.png` and `docs/screenshot-types-rtl.png`.
+
+### Changed
+- Product voice is universal: "Add item", "All items", item counts, new tagline —
+  in all 11 languages.
+- Markdown notes render through a minimal allowlisted renderer built from DOM
+  nodes; links limited to http/https/mailto with `rel="noopener noreferrer"`.
+
 ## [1.6.0] - 2026-11-24
 
 Foundations for the universal library (roadmap Phases 0–1). No visible UI change;

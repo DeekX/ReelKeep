@@ -15,9 +15,22 @@ let thumbVideoReady = false;
 
 export async function setThumbnail(id, value, source, time = null) {
   if (!value) return;
-  patch(id, { thumbnail: value, thumbSource: source, thumbTime: time });
+  const item = byId(id);
+  if (item?.type === 'video') {
+    patch(id, { thumbnail: value, thumbSource: source, thumbTime: time });
+  } else {
+    const stored = /^(thumbnails|files)\//.test(value);
+    const origin = source === 'frame' ? 'frame' : source === 'upload' ? 'upload' : source === 'url' ? 'url' : 'auto';
+    patch(id, { cover: { kind: stored ? 'file' : 'url', path: value, origin } });
+  }
   if (editingItem()?.id === id) paintEditThumb();
   toast(source === 'frame' ? t('to.coverframe', { t: fmtTime(time) }) : t('to.cover'), 'ok', 2000);
+}
+
+export function resetCover(id) {
+  const item = byId(id);
+  if (item?.type === 'video') patch(id, { thumbnail: '', thumbSource: 'auto', thumbTime: null });
+  else patch(id, { cover: { kind: 'none', path: '', origin: 'auto' } });
 }
 
 export async function openThumbPicker(id) {
@@ -153,7 +166,7 @@ $('#tpUseUrl').addEventListener('click', () => {
 });
 
 $('#tpReset').addEventListener('click', () => {
-  patch(thumbTarget.id, { thumbnail: '', thumbSource: 'auto', thumbTime: null });
+  resetCover(thumbTarget.id);
   thumbDialog.close();
 });
 

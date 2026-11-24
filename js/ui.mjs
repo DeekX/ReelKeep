@@ -3,10 +3,24 @@
 
 import { $, esc } from './util.mjs';
 
-export function toast(msg, kind = '', ms = 3400) {
+export function toast(msg, kind = '', ms = 3400, action = null) {
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
-  el.textContent = msg;
+  const span = document.createElement('span');
+  span.textContent = msg;
+  el.append(span);
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-act';
+    btn.textContent = action.label;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      el.remove();
+      action.fn();
+    };
+    el.append(btn);
+  }
   el.onclick = () => el.remove();
   $('#toasts').append(el);
   setTimeout(() => el.remove(), ms);

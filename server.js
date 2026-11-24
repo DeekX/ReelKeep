@@ -15,6 +15,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { Readable } = require('stream');
 const { createStore } = require('./lib/store');
+const { safeFetch } = require('./lib/safefetch');
+const { httpError } = require('./lib/ssrf');
+const { extractSnapshot } = require('./lib/snapshot');
 
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
@@ -54,6 +57,7 @@ const MIME = {
   '.m4a': 'audio/mp4',
   '.wav': 'audio/wav',
   '.ogg': 'audio/ogg',
+  '.pdf': 'application/pdf',
   '.txt': 'text/plain; charset=utf-8',
 };
 
@@ -104,6 +108,23 @@ function readJson(req) {
 function inside(dir, target) {
   const rel = path.relative(dir, target);
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/** magic-byte content sniffing (upload intake never trusts the extension alone) */
+function sniffMime(buf) {
+  if (!buf || buf.length < 12) return '';
+  const s = (a, b) => buf.toString('latin1', a, b);
+  if (buf[0] === 0x89 && s(1, 4) === 'PNG') return 'image/png';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (s(0, 4) === 'GIF8') return 'image/gif';
+  if (s(0, 4) === 'RIFF' && s(8, 12) === 'WEBP') return 'image/webp';
+  if (s(4, 8) === 'ftyp') return 'video/mp4';
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return 'video/webm';
+  if (s(0, 4) === 'OggS') return 'audio/ogg';
+  if (s(0, 3) === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0)) return 'audio/mpeg';
+  if (s(0, 4) === '%PDF') return 'application/pdf';
+  if (s(0, 4) === 'RIFF' && s(8, 12) === 'WAVE') return 'audio/wav';
+  return '';
 }
 
 function extFromMime(type = '') {
@@ -164,8 +185,7 @@ async function enrich(target) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
   try {
-    const res = await fetch(target, {
-      redirect: 'follow',
+    const { res, finalUrl } = await safeFetch(target, {
       signal: controller.signal,
       headers: {
         'User-Agent': UA,
@@ -176,7 +196,6 @@ async function enrich(target) {
       },
     });
     const type = res.headers.get('content-type') || '';
-    const finalUrl = res.url || target;
 
     if (/^(video|audio)\//.test(type) || /\.(mp4|webm|ogv|mov|m4v|mp3)(\?|$)/i.test(finalUrl)) {
       return { pageUrl: finalUrl, mediaUrl: finalUrl, title: finalUrl.split('/').pop(), direct: true };
@@ -254,7 +273,7 @@ async function enrich(target) {
       try {
         const host = new URL(finalUrl).hostname;
         if (/(^|\.)vimeo\.com$/.test(host)) {
-          const oe = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(finalUrl)}`, {
+          const { res: oe } = await safeFetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(finalUrl)}`, {
             signal: controller.signal,
             headers: { 'User-Agent': UA },
           });
@@ -285,6 +304,13 @@ async function enrich(target) {
       image: absUrl(image, finalUrl),
       favicon: absUrl(href, finalUrl),
       siteName,
+      description:
+        metaTag(html, 'property', 'og:description') ||
+        metaTag(html, 'name', 'twitter:description') ||
+        metaTag(html, 'name', 'description') ||
+        null,
+      author: metaTag(html, 'name', 'author') || metaTag(html, 'property', 'article:author') || null,
+      publishedAt: metaTag(html, 'property', 'article:published_time') || null,
       mediaUrl: videoCandidates.find((u) => /\.(mp4|webm|ogv|mov|m4v|mp3)(\?|$)/i.test(u)) || null,
       embedPageUrl: videoCandidates.find((u) => !/\.(mp4|webm|ogv|mov|m4v|mp3)(\?|$)/i.test(u)) || null,
       isVideoPage: /video|movie/i.test(metaTag(html, 'property', 'og:type') || ''),
@@ -298,15 +324,22 @@ async function enrich(target) {
 
 /* --------------------------------------------------------- media proxy */
 
+const MAX_MEDIA = Number(process.env.MAX_MEDIA_MB || 4096) * 1024 * 1024;
+
 async function proxyMedia(req, res, target, referer) {
   const headers = { 'User-Agent': UA, Referer: referer || target };
   if (req.headers.range) headers.Range = req.headers.range;
   let upstream;
   try {
-    upstream = await fetch(target, { headers, redirect: 'follow' });
+    upstream = (await safeFetch(target, { headers, timeoutMs: 30000 })).res;
   } catch (err) {
     if (res.headersSent) return res.end();
-    return send(res, 502, { error: `cannot reach that host (${err.cause?.code || err.message})` });
+    return send(res, err.status || 502, { error: `cannot reach that host (${err.cause?.code || err.message})` });
+  }
+  const upType = upstream.headers.get('content-type') || '';
+  if (upstream.ok && !/^(video|audio)\//.test(upType) && !/^(application\/(octet-stream|mp4|ogg|webm))/.test(upType)) {
+    upstream.body?.cancel().catch(() => {});
+    return send(res, 415, { error: `not a media stream (${upType || 'unknown'})` });
   }
   const out = {
     'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream',
@@ -325,7 +358,12 @@ async function proxyMedia(req, res, target, referer) {
   if (!upstream.body) return res.end();
   await new Promise((resolve) => {
     const src = Readable.fromWeb(upstream.body);
-    src.on('error', () => resolve()); // client disconnect / upstream cut: end quietly
+    let bytes = 0;
+    src.on('data', (c) => {
+      bytes += c.length;
+      if (bytes > MAX_MEDIA) src.destroy(new Error('media stream over cap'));
+    });
+    src.on('error', () => resolve()); // client disconnect / upstream cut / cap: end quietly
     res.on('close', () => src.destroy());
     src.pipe(res).on('close', resolve);
   });
@@ -363,7 +401,7 @@ async function saveUpload(req, declaredName) {
 
 /* -------------------------------------------------------------- static */
 
-function serveStatic(req, res, absPath, relFromRoot) {
+function serveStatic(req, res, absPath, relFromRoot, inline = false) {
   fs.stat(absPath, (err, stat) => {
     if (err || !stat.isFile()) return send(res, 404, { error: 'not found' });
     // never follow a symlink out of the allowed roots
@@ -378,8 +416,10 @@ function serveStatic(req, res, absPath, relFromRoot) {
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': absPath.startsWith(VIDEO_DIR) || absPath.startsWith(FILE_DIR) ? 'no-store' : 'no-cache',
       };
-      // generic files download rather than render in the app origin
-      if (absPath.startsWith(FILE_DIR)) headers['Content-Disposition'] = 'attachment';
+      // generic files download rather than render in the app origin; inline is
+      // only honored for viewer-safe kinds (pdf/image/media), never web content
+      const inlineSafe = /^(image\/|video\/|audio\/|application\/pdf)/.test(type);
+      if (absPath.startsWith(FILE_DIR) && !(inline && inlineSafe)) headers['Content-Disposition'] = 'attachment';
       const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
       if (range && (range[1] || range[2])) {
         let start;
@@ -417,6 +457,21 @@ const server = http.createServer(async (req, res) => {
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-File-Name');
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       if (req.method === 'OPTIONS') return res.writeHead(204).end();
+
+      // CSRF: any website can reach a loopback server, so state-changing requests
+      // must come from our own origin. Browsers always send Origin on cross-origin
+      // writes; non-browser clients (tests, curl) send none and stay allowed.
+      if (req.method !== 'GET' && req.headers.origin) {
+        let originHost = null;
+        try {
+          originHost = new URL(req.headers.origin).host;
+        } catch {
+          /* malformed Origin: refuse below */
+        }
+        if (originHost !== req.headers.host) {
+          return send(res, 403, { error: 'cross-origin writes are not allowed' });
+        }
+      }
 
       /* -------------------------------------------- universal library */
 
@@ -604,11 +659,7 @@ const server = http.createServer(async (req, res) => {
         let buf;
         let type;
         try {
-          const upstream = await fetch(image, {
-            signal: controller.signal,
-            redirect: 'follow',
-            headers: { 'User-Agent': UA, Referer: referer || image },
-          });
+          const upstream = (await safeFetch(image, { signal: controller.signal, headers: { 'User-Agent': UA, Referer: referer || image } })).res;
           if (!upstream.ok) throw Object.assign(new Error(`image host returned ${upstream.status}`), { status: 502 });
           type = (upstream.headers.get('content-type') || '').split(';')[0];
           if (!type.startsWith('image/')) throw Object.assign(new Error(`not an image (${type || 'unknown'})`), { status: 415 });
@@ -627,6 +678,73 @@ const server = http.createServer(async (req, res) => {
 
       if (p === '/api/videos/upload' && req.method === 'POST') {
         return send(res, 201, await saveUpload(req, req.headers['x-file-name']));
+      }
+
+      /* Generic file intake for any item type. Content is sniffed as well as
+         extension-checked; web-executable types are refused outright. */
+      if (p === '/api/files' && req.method === 'POST') {
+        const dir = url.searchParams.get('dir') || 'files';
+        if (!['files', 'videos', 'thumbnails'].includes(dir)) return send(res, 400, { error: 'unknown file dir' });
+        let raw = req.headers['x-file-name'] || '';
+        try {
+          raw = decodeURIComponent(raw);
+        } catch {
+          /* already decoded */
+        }
+        const ext = path.extname(raw).toLowerCase();
+        const WEB_EXEC = new Set(['.html', '.htm', '.xhtml', '.svg', '.js', '.mjs', '.css', '.xml', '.xsl', '.swf']);
+        if (dir === 'files' && WEB_EXEC.has(ext)) return send(res, 415, { error: 'web-executable files are not accepted' });
+        if (dir === 'videos' && !UPLOAD_EXT.has(ext)) return send(res, 415, { error: 'not a media extension' });
+        const cap = dir === 'thumbnails' ? 15 * 1024 * 1024 : MAX_UPLOAD;
+        const name = `${Date.now()}_${crypto.randomUUID().slice(0, 8)}${ext || '.bin'}`;
+        const rel = `${dir}/${name}`;
+        const file = path.join(ROOT, rel);
+        const ws = fs.createWriteStream(file);
+        let size = 0;
+        let head = Buffer.alloc(0);
+        try {
+          for await (const chunk of req) {
+            size += chunk.length;
+            if (size > cap) throw httpError(413, 'file too large');
+            if (head.length < 512) head = Buffer.concat([head, chunk.subarray(0, 512 - head.length)]);
+            if (!ws.write(chunk)) await new Promise((r) => ws.once('drain', r));
+          }
+        } catch (err) {
+          ws.destroy();
+          await fsp.rm(file, { force: true });
+          throw err;
+        }
+        await new Promise((r) => ws.end(r));
+        const sniff = head.toString('latin1').trimStart().toLowerCase();
+        const looksWeb = sniff.startsWith('<!doctype html') || sniff.startsWith('<html') || sniff.startsWith('<script') || sniff.startsWith('<?xml');
+        const mime = sniffMime(head);
+        if (looksWeb || (dir === 'thumbnails' && !mime.startsWith('image/'))) {
+          await fsp.rm(file, { force: true });
+          return send(res, 415, { error: 'content does not match the file kind' });
+        }
+        return send(res, 201, { path: rel, size, mime: mime || MIME[ext] || 'application/octet-stream' });
+      }
+
+      /* Opt-in reader snapshot: text blocks only, sanitized by construction. */
+      if (p === '/api/snapshot' && req.method === 'POST') {
+        const { url: target } = await readJson(req);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+        try {
+          const { res: page, finalUrl } = await safeFetch(target, { signal: controller.signal, headers: { 'User-Agent': UA, Accept: 'text/html' } });
+          if (!page.ok) throw httpError(502, `site returned ${page.status}`);
+          const type = page.headers.get('content-type') || '';
+          if (!type.includes('html')) throw httpError(415, 'page is not html');
+          const html = (await page.text()).slice(0, 2 * 1024 * 1024);
+          const snap = extractSnapshot(html);
+          const title =
+            metaTag(html, 'property', 'og:title') ||
+            decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s+/g, ' ').trim() ||
+            null;
+          return send(res, 200, { url: finalUrl, title, ...snap });
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
       if (p === '/api/enrich' && req.method === 'GET') {
@@ -656,7 +774,7 @@ const server = http.createServer(async (req, res) => {
     const publicFile = PUBLIC_FILES.has(relFromRoot);
     const publicMedia = PUBLIC_DIRS.some((d) => abs !== d && inside(d, abs));
     if (!publicFile && !publicMedia) return send(res, 404, { error: 'not found' });
-    return serveStatic(req, res, abs, relFromRoot);
+    return serveStatic(req, res, abs, relFromRoot, url.searchParams.get('inline') === '1');
   } catch (err) {
     console.error(`${req.method} ${req.url} ->`, err.message);
     return send(res, err.status || 500, { error: err.message });

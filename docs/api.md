@@ -17,7 +17,9 @@ Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `409`,
 | PATCH | `/api/items/:id` | partial item (`data` merged shallowly) | `200 { item }` — `id` cannot change |
 | DELETE | `/api/items/:id` | — | `200 { ok }` — removes a stored cover in `thumbnails/` |
 | POST | `/api/items/move` | `{ ids, folderId }` (`''`/null = unfiled) | `200 { moved }` |
+| POST | `/api/files` | `?dir=files\|videos\|thumbnails`, raw bytes, `X-File-Name` | `201 { path, size, mime }` — content-sniffed; web-executable kinds refused; caps per dir |
 | DELETE | `/api/files` | `?path=thumbnails/…\|videos/…\|files/…` | `200 { ok }` — traversal-checked |
+| POST | `/api/snapshot` | `{ url }` | `{ url, title, blocks: [{tag, text}], readingTimeMin }` — opt-in reader copy; text only, SSRF-guarded |
 | GET | `/api/backups` | — | `{ backups: [{ name, size, modifiedAt }] }` |
 | POST | `/api/backups` | `{ reason }` | `201 { name }` — rolling backup of the library file |
 

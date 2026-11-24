@@ -4,11 +4,17 @@
 
 import { $, $$ } from './js/util.mjs';
 import { toast } from './js/ui.mjs';
-import { state, byId, patch, removeItem, initLibrary, setOnChange, flushSave, getStorage } from './js/library.mjs';
+import { state, byId, patch, addItem, removeItem, initLibrary, setOnChange, flushSave, getStorage } from './js/library.mjs';
 import { createServerStorage, createLocalStorage } from './js/storage.mjs';
 import { registerHandler } from './js/handlers/registry.mjs';
 import { videoHandler } from './js/handlers/video.mjs';
 import { linkHandler } from './js/handlers/link.mjs';
+import { articleHandler } from './js/handlers/article.mjs';
+import { imageHandler } from './js/handlers/image.mjs';
+import { audioHandler } from './js/handlers/audio.mjs';
+import { pdfHandler } from './js/handlers/pdf.mjs';
+import { noteHandler } from './js/handlers/note.mjs';
+import { fileHandler } from './js/handlers/file.mjs';
 import { migrateLibrary } from './js/migrations.mjs';
 import { render, startRename, toggleSelect, setSelecting } from './js/views.mjs';
 import { openPlayer, paintLbMeta, paintLbDetails, closePlayer } from './js/lightbox.mjs';
@@ -21,6 +27,12 @@ import './js/dnd.mjs';
 import './js/keyboard.mjs';
 
 registerHandler(videoHandler);
+registerHandler(articleHandler);
+registerHandler(imageHandler);
+registerHandler(audioHandler);
+registerHandler(pdfHandler);
+registerHandler(noteHandler);
+registerHandler(fileHandler);
 registerHandler(linkHandler);
 setOnChange(render);
 
@@ -109,6 +121,11 @@ $('#sortSel').addEventListener('change', (e) => {
 });
 $('#providerSel').addEventListener('change', (e) => {
   state.provider = e.target.value;
+  state.limit = 60;
+  render();
+});
+$('#typeSel').addEventListener('change', (e) => {
+  state.type = e.target.value;
   state.limit = 60;
   render();
 });
@@ -239,6 +256,9 @@ window.ReelKeep = {
   moveDialog,
   thumbDialog,
   isPickerReady,
+  add: addItem,
+  patch,
+  removeItem,
 };
 
 // never lose a debounced save when the tab goes away

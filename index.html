@@ -36,6 +36,12 @@
         <symbol id="i-group" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 13l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
         <symbol id="i-select" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
         <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></symbol>
+        <symbol id="i-audio" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16.5" cy="16" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+        <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 13h6M9 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+        <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4h14v12l-4 4H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M15 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 9h7M8.5 12.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+        <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+        <symbol id="i-article" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 9h8M8 12.5h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v2h16v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
       </defs>
     </svg>
 
@@ -82,7 +88,7 @@
         </div>
         <p class="libhead-tag" data-i18n="head.tagline">Good videos. Kept close.</p>
       </div>
-      <button type="button" class="btn primary mobile-add" data-open="add" aria-label="Add video"><svg><use href="#i-plus" /></svg></button>
+      <button type="button" class="btn primary mobile-add" data-open="add" aria-label="Add item" data-i18n-aria-label="add"><svg><use href="#i-plus" /></svg></button>
       <div class="libhead-controls">
         <button type="button" class="btn tool" id="selectBtn" title="Select videos to move" data-i18n-title="sel.btn" aria-pressed="false"><svg><use href="#i-select" /></svg> <span data-i18n="sel.short">Select</span></button>
         <button type="button" class="btn tool" id="groupBtn" title="Group by source (G)" data-i18n-title="group.btn" aria-pressed="false"><svg><use href="#i-group" /></svg> <span data-i18n="group.short">Group</span></button>
@@ -100,6 +106,12 @@
         <select id="providerSel" title="Filter by source" data-i18n-title="source">
           <option value="" data-i18n="source.all">All sources</option>
         </select>
+        <select id="typeSel" title="Filter by type" data-i18n-title="filter.type">
+          <option value="" data-i18n="filter.type.all">All types</option>
+        </select>
+        <button type="button" class="btn tool" id="exportBtn" title="Export library" data-i18n-title="export.btn"><svg><use href="#i-download" /></svg> <span data-i18n="export.btn">Export</span></button>
+        <button type="button" class="btn tool" id="importBtn" title="Import library" data-i18n-title="import.btn"><svg><use href="#i-upload" /></svg> <span data-i18n="import.btn">Import</span></button>
+        <input id="importFile" type="file" accept="application/json,.json" hidden />
       </div>
     </section>
 
@@ -140,7 +152,7 @@
     <div id="dropzone" class="dropzone" hidden><svg><use href="#i-upload" /></svg><span data-i18n="drop">Drop to upload &amp; add</span></div>
 
     <!-- ------------------------------------------------------ lightbox -->
-    <dialog id="lightbox" class="lightbox" aria-label="Video player">
+    <dialog id="lightbox" class="lightbox" aria-label="Item viewer" data-i18n-aria-label="lb.aria">
       <div class="lb-shell">
         <div class="lb-bar">
           <button type="button" class="lb-back" data-lb="close" title="Close (Esc)" data-i18n-title="lb.close"><svg><use href="#i-left" /></svg> <span data-i18n="lb.back">Library</span></button>
@@ -160,6 +172,7 @@
           <div class="lb-frame-wrap">
             <iframe id="lbFrame" title="Video player" allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; accelerometer; gyroscope" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
           </div>
+          <div id="lbNative" class="lb-native" hidden></div>
           <button class="lb-nav prev" data-lb="prev" title="Previous (←)" data-i18n-title="lb.prev"><svg><use href="#i-left" /></svg></button>
           <button class="lb-nav next" data-lb="next" title="Next (→)" data-i18n-title="lb.next"><svg><use href="#i-right" /></svg></button>
           <p class="lb-hint" id="lbHint" hidden></p>
@@ -167,6 +180,7 @@
         <div class="lb-details">
           <div class="lb-meta-row">
             <span id="lbMeta" class="lb-meta"></span>
+            <button type="button" class="btn resume" id="lbResume" hidden></button>
             <label class="switch"><input type="checkbox" id="lbRemember" /> <span data-i18n="lb.remember">Remember this time as the start point</span></label>
             <span id="lbPos"></span>
           </div>
@@ -198,13 +212,26 @@
           <button type="button" class="tab active" data-tab="link"><svg><use href="#i-link" /></svg> <span data-i18n="tab.link">Link</span></button>
           <button type="button" class="tab" data-tab="embed"><svg><use href="#i-code" /></svg> <span data-i18n="tab.embed">Embed code</span></button>
           <button type="button" class="tab" data-tab="upload"><svg><use href="#i-upload" /></svg> <span data-i18n="tab.upload">Upload file</span></button>
+          <button type="button" class="tab" data-tab="note"><svg><use href="#i-note" /></svg> <span data-i18n="tab.note">Note</span></button>
         </div>
 
         <div class="panel" data-panel="link">
           <label class="field"><span data-i18n="link.label">Paste any page or video link</span>
             <input id="addUrl" type="url" placeholder="https://www.youtube.com/watch?v=…  ·  https://example.com/page  ·  https://site.com/clip.mp4" spellcheck="false" />
           </label>
+          <div class="row">
+            <label class="field grow"><span data-i18n="add.type">Type</span>
+              <select id="pvType"></select>
+            </label>
+            <span class="pv-detected" id="pvTypeDetected"></span>
+          </div>
           <p class="help" data-i18n-html="link.help">Titles and default thumbnails are fetched automatically from the page. Sites that forbid embedding open in a fallback frame with an <em>Open original</em> button.</p>
+        </div>
+
+        <div class="panel" data-panel="note" hidden>
+          <label class="field"><span data-i18n="note.body">Markdown</span>
+            <textarea id="addNote" rows="8" class="mono" placeholder="# Heading&#10;&#10;Write **Markdown** — headings, lists, links, code." data-i18n-placeholder="note.ph" spellcheck="false"></textarea>
+          </label>
         </div>
 
         <div class="panel" data-panel="embed" hidden>
@@ -216,10 +243,10 @@
 
         <div class="panel" data-panel="upload" hidden>
           <label class="dropfield" id="dropField">
-            <input id="addFile" type="file" accept="video/*,audio/*" hidden />
+            <input id="addFile" type="file" hidden />
             <svg><use href="#i-upload" /></svg>
-            <b id="dropLabel" data-i18n="upload.choose">Choose a video file</b>
-            <em data-i18n="upload.note">stored in ./videos and served locally — full thumbnail frame picking works</em>
+            <b id="dropLabel" data-i18n="upload.choose">Choose a file</b>
+            <em data-i18n="upload.note">stored locally and served by your own server — videos keep full frame picking</em>
           </label>
           <progress id="upProgress" max="100" value="0" hidden></progress>
         </div>
@@ -268,17 +295,9 @@
           <div class="preview-thumb lg" id="edThumb"></div>
           <div class="edit-fields">
             <label class="field"><span data-i18n="f.title">Title</span><input id="edTitle" type="text" /></label>
-            <div class="row">
-              <label class="field"><span data-i18n="f.tags">Tags</span><input id="edTags" type="text" /></label>
-              <label class="field short"><span><span data-i18n="f.start">Start at</span> <small data-i18n="f.start.hint">(mm:ss)</small></span><input id="edStart" type="text" placeholder="0:00" /></label>
-            </div>
+            <label class="field"><span data-i18n="f.tags">Tags</span><input id="edTags" type="text" /></label>
             <label class="field"><span data-i18n="f.notes">Notes</span><textarea id="edNotes" rows="2"></textarea></label>
-            <details class="adv">
-              <summary data-i18n="edit.adv">Advanced — playback source</summary>
-              <label class="field"><span data-i18n="edit.url">Page link</span><input id="edUrl" type="url" spellcheck="false" /></label>
-              <label class="field"><span><span data-i18n="edit.embed">Embed / player URL override</span> <small data-i18n="edit.embed.hint">(used inside the frame)</small></span><input id="edEmbed" type="text" spellcheck="false" placeholder="auto-detect" data-i18n-placeholder="edit.ph.embed" /></label>
-              <p class="help"><span data-i18n="edit.detected">Detected as:</span> <code id="edKind"></code></p>
-            </details>
+            <div id="edExtra" class="edit-extra"></div>
           </div>
         </div>
         <div class="thumb-actions">
@@ -404,6 +423,24 @@
           <div class="spacer"></div>
           <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>
           <button type="button" class="btn danger" id="cfOk" data-i18n="cf.ok">Delete</button>
+        </footer>
+      </div>
+    </dialog>
+
+    <!-- -------------------------------------------------- import dialog -->
+    <dialog id="importDialog" class="modal tiny">
+      <div class="modal-form">
+        <header class="modal-head">
+          <div class="modal-head-row"><h2 data-i18n="import.title">Import library</h2></div>
+        </header>
+        <div class="modal-body">
+          <p class="help" id="imPreview"></p>
+          <p class="help" id="imErrors" hidden></p>
+        </div>
+        <footer class="modal-foot">
+          <div class="spacer"></div>
+          <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>
+          <button type="button" class="btn primary" id="imOk" data-i18n="import.ok">Import</button>
         </footer>
       </div>
     </dialog>

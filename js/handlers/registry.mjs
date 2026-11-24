@@ -20,6 +20,11 @@ export function detectType(input) {
   return best.type;
 }
 
-export const labelOf = (item, t) => getHandler(item.type)?.label(item, t) ?? item.source?.name ?? '';
+export const labelOf = (item, t = globalThis.t) => getHandler(item.type)?.label(item, t) ?? item.source?.name ?? '';
 export const iconOf = (item) => getHandler(item.type)?.icon ?? '#i-link';
 export const sourceKeyOf = (item) => getHandler(item.type)?.sourceKey?.(item) ?? item.type;
+export const stampOf = (item, t = globalThis.t) => getHandler(item.type)?.stamp?.(item, t) ?? '';
+export const playsOf = (item) => !!getHandler(item.type)?.plays;
+export const coversOf = (item) => getHandler(item.type)?.covers !== false;
+export const badgeOf = (item) =>
+  getHandler(item.type)?.badge?.(item) ?? `<svg class="ticon"><use href="${getHandler(item.type)?.icon ?? '#i-link'}" /></svg>`;

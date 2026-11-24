@@ -59,8 +59,13 @@ Rules:
 | Type | Fields |
 | --- | --- |
 | video | `kind` (embed/file/page), `provider`, `videoId`, `playerUrl` (embed override), `fileUrl`, `startAt` (s), `progress` (s, resume), `duration` (s), `favicon`, `thumbSource`, `thumbTime` |
+| audio | `filePath`/`fileUrl`, `progress` (s), `duration` (s), `artist`, `album` |
+| image | `filePath`/`imageUrl`, `width`, `height` |
+| article | `description`, `author`, `publishedAt`, `snapshotPath` (opt-in reader copy), `readingTimeMin` |
 | link | `description` |
-| audio, image, article, pdf, note, file | arrive in Phase 2 (see ROADMAP.md) |
+| pdf | `filePath`/`fileUrl`, `pages` |
+| note | `body` (Markdown source), `format: "markdown"` |
+| file | `filePath`, `size`, `mime`, `hash` (SHA-256, best-effort ≤ 50 MB) |
 
 The video fields `kind/provider/videoId/playerUrl/fileUrl/startAt/duration/
 favicon/thumbSource/thumbTime` are exactly the v1 record's playback fields, so

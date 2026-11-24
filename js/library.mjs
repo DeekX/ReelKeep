@@ -16,6 +16,7 @@ export const state = {
   tokens: [],
   sort: 'added',
   provider: '',
+  type: '',
   tags: new Set(),
   view: 'grid',
   group: false,
@@ -192,6 +193,12 @@ export async function enrichUrl(url) {
   return storage.enrichUrl(url);
 }
 
+/** Opt-in reader snapshot (companion enricher); text blocks, sanitized by construction. */
+export async function snapshotUrl(url) {
+  if (!storage?.snapshotUrl) throw new Error(t('st.localenrich'));
+  return storage.snapshotUrl(url);
+}
+
 /** Copy a hotlinked cover into local storage; keeps the URL if the copy fails. */
 export async function copyCover(url, referer) {
   if (!url || !/^https?:/i.test(url) || !storage?.copyImageFromUrl) return url;
@@ -218,6 +225,7 @@ export function visibleItems() {
     if (state.folder === 'unfiled' && v.folderId) return false;
     if (state.folder !== 'all' && state.folder !== 'unfiled' && v.folderId !== state.folder) return false;
     if (state.provider && sourceKeyOf(v) !== state.provider) return false;
+    if (state.type && v.type !== state.type) return false;
     if (state.tags.size && ![...state.tags].every((tag) => (v.tags || []).includes(tag))) return false;
     return matches(v, tokens);
   });

@@ -1,27 +1,79 @@
-/* ReelKeep lightbox — the unified player/viewer host. */
+/* ReelKeep lightbox — the unified viewer host. Video plays through the iframe
+   stage; every other type renders a native viewer from its handler. */
 
 import { $, $$, esc, fmtTime, hostOf } from './util.mjs';
 import { toast } from './ui.mjs';
-import { state, byId, patch, visibleItems } from './library.mjs';
-import { labelOf } from './handlers/registry.mjs';
+import { state, byId, patch, visibleItems, getStorage, snapshotUrl } from './library.mjs';
+import { getHandler, labelOf, coversOf } from './handlers/registry.mjs';
 import { frameSrc } from './handlers/video.mjs';
 import { render } from './views.mjs';
 import { openEdit } from './dialogs.mjs';
 import { openThumbPicker } from './thumbpicker.mjs';
 
 const lb = $('#lightbox');
+let viewerCleanup = null;
+let lastProgressSave = 0;
 
-export function openPlayer(id) {
+function viewerCtx(item, resume) {
+  return {
+    container: $('#lbNative'),
+    storage: getStorage(),
+    backend: state.backend,
+    resume: resume || 0,
+    patch,
+    t,
+    toast,
+    openEdit,
+    snapshot: snapshotUrl,
+  };
+}
+
+function closeViewer() {
+  if (viewerCleanup) {
+    try {
+      viewerCleanup();
+    } catch {
+      /* viewer already torn down */
+    }
+    viewerCleanup = null;
+  }
+  const native = $('#lbNative');
+  native.textContent = '';
+  native.hidden = true;
+}
+
+export function openPlayer(id, opts = {}) {
   const v = byId(id);
   if (!v) return;
+  closeViewer();
   state.current = v;
   state.lastTime = 0;
-  $('#lbFrame').src = frameSrc(v, state.backend);
+  lastProgressSave = 0;
+  const handler = getHandler(v.type);
+  const frameWrap = $('.lb-frame-wrap');
+  if (handler?.frame) {
+    frameWrap.hidden = false;
+    $('#lbFrame').src = frameSrc(v, state.backend, opts.resume || v.data?.startAt || 0);
+  } else {
+    frameWrap.hidden = true;
+    $('#lbFrame').src = 'about:blank';
+    $('#lbNative').hidden = false;
+    viewerCleanup = handler?.openViewer?.(v, viewerCtx(v, opts.resume)) || null;
+  }
   $('#lbTitle').textContent = v.title || t('card.untitled');
   paintLbMeta(v);
   paintLbDetails(v);
   $('#lbRemember').checked = false;
-  $('#lbRemember').closest('.switch').hidden = v.data?.kind !== 'file';
+  $('#lbRemember').closest('.switch').hidden = !(v.type === 'video' && v.data?.kind === 'file');
+  $('[data-lb="thumb"]').hidden = !coversOf(v);
+  // offer resume, never force it: explicit startAt stays untouched
+  const prog = v.data?.progress;
+  const resumable = (v.type === 'video' || v.type === 'audio') && prog > 5 && !opts.resume;
+  $('#lbResume').hidden = !resumable;
+  if (resumable) {
+    $('#lbResume').textContent = t('lb.resume', { t: fmtTime(prog) });
+    $('#lbResume').onclick = () => openPlayer(v.id, { resume: prog });
+  }
   $$('.lb-nav').forEach((b) => (b.style.visibility = ''));
   positionNav();
   lb.showModal();
@@ -30,12 +82,13 @@ export function openPlayer(id) {
 
 export function paintLbMeta(v) {
   const d = v.data || {};
-  $('#lbHint').hidden = d.kind !== 'page';
-  if (d.kind === 'page') $('#lbHint').textContent = t('lb.hint');
+  $('#lbHint').hidden = !(v.type === 'video' && d.kind === 'page');
+  if (v.type === 'video' && d.kind === 'page') $('#lbHint').textContent = t('lb.hint');
   const bits = [];
-  if (v.url) bits.push(`<span class="m">${esc(hostOf(v.url))}</span>`);
+  if (v.type !== 'video') bits.push(`<span class="m">${esc(t('type.' + v.type))}</span>`);
+  if (v.url && /^https?:/i.test(v.url)) bits.push(`<span class="m">${esc(hostOf(v.url))}</span>`);
   if (d.duration) bits.push(`<span class="m">${fmtTime(d.duration)}</span>`);
-  if (d.startAt) bits.push(`<span class="m">${esc(t('lb.starts', { t: fmtTime(d.startAt) }))}</span>`);
+  if (v.type === 'video' && d.startAt) bits.push(`<span class="m">${esc(t('lb.starts', { t: fmtTime(d.startAt) }))}</span>`);
   bits.push(...(v.tags || []).map((tag) => `<span class="t">#${esc(tag)}</span>`));
   $('#lbMeta').innerHTML = bits.join('');
 }
@@ -67,8 +120,11 @@ export function stepVideo(dir) {
 }
 
 export function closePlayer() {
-  const remember = $('#lbRemember').checked && state.lastTime > 1 && state.current?.data?.kind === 'file';
-  if (remember && state.current) patch(state.current.id, { startAt: Math.floor(state.lastTime) }, false);
+  const v = state.current;
+  const remember = $('#lbRemember').checked && state.lastTime > 1 && v?.type === 'video' && v.data?.kind === 'file';
+  if (remember && v) patch(v.id, { startAt: Math.floor(state.lastTime) }, false);
+  if (v?.type === 'video' && state.lastTime > 5) patch(v.id, { progress: Math.floor(state.lastTime) }, false);
+  closeViewer();
   lb.close();
   $('#lbFrame').src = 'about:blank';
   lb.classList.remove('fit');
@@ -78,7 +134,14 @@ export function closePlayer() {
 window.addEventListener('message', (e) => {
   const d = e.data;
   if (!d || d.from !== 'vg-player') return;
-  if (d.type === 'time') state.lastTime = d.t;
+  if (d.type === 'time') {
+    state.lastTime = d.t;
+    // remember position as playback advances, not only on close
+    if (state.current?.type === 'video' && Math.abs(d.t - lastProgressSave) >= 15) {
+      lastProgressSave = d.t;
+      patch(state.current.id, { progress: Math.floor(d.t) }, false);
+    }
+  }
   if (d.type === 'meta' && d.duration && state.current && !state.current.data?.duration) {
     patch(state.current.id, { duration: Math.round(d.duration) }, false);
   }

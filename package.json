@@ -1,7 +1,7 @@
 {
   "name": "reelkeep",
-  "version": "1.6.0",
-  "description": "Local-first video library: paste any link, watch in a unified player, pick frame-accurate thumbnails. Zero dependencies, no build step, plain JSON storage.",
+  "version": "2.0.0",
+  "description": "Local-first library for everything you want to keep: videos, articles, images, audio, PDFs, notes and files. Zero dependencies, no build step, plain JSON storage.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

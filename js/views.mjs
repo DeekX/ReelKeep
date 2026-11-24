@@ -4,7 +4,7 @@
 import { $, $$, esc, fmtTime, hostOf, assetUrl } from './util.mjs';
 import { relDate } from './ui.mjs';
 import { state, visibleItems, byId, getStorage, patch } from './library.mjs';
-import { labelOf, sourceKeyOf } from './handlers/registry.mjs';
+import { labelOf, sourceKeyOf, stampOf, iconOf, playsOf, badgeOf } from './handlers/registry.mjs';
 import { PROVIDERS } from './providers.mjs';
 
 export function thumbnailFor(item) {
@@ -27,10 +27,8 @@ export function cardHtml(v, tokens) {
   const d = v.data || {};
   const thumb = thumbnailFor(v);
   const label = esc(labelOf(v));
-  const favHost = hostOf(v.url);
-  const favSrc = assetUrl(d.favicon) || (favHost ? `https://${favHost}/favicon.ico` : '');
-  const fav = favSrc ? `<img src="${esc(favSrc)}" alt="" draggable="false" onerror="this.remove()">` : '';
-  const stamp = d.duration ? fmtTime(d.duration) : d.startAt ? '▶ ' + fmtTime(d.startAt) : '';
+  const badge = badgeOf(v);
+  const stamp = stampOf(v);
   const tags = (v.tags || []).slice(0, 3).map((tag) => `<span class="t">#${esc(tag)}</span>`).join('');
   const folder = state.folders.find((f) => f.id === v.folderId);
   const fold = folder && state.folder === 'all' ? `<span class="fold"><svg><use href="#i-folder" /></svg>${esc(folder.name)}</span>` : '';
@@ -40,11 +38,11 @@ export function cardHtml(v, tokens) {
   return `<article class="card${state.selected.has(v.id) ? ' selected' : ''}" data-id="${v.id}" tabindex="0" draggable="true" aria-label="${esc(v.title)}">
     <div class="thumb">
       ${sel}
-      <div class="ph"><svg><use href="#i-film" /></svg></div>
+      <div class="ph"><svg><use href="${iconOf(v)}" /></svg></div>
       ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" draggable="false" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
-      <span class="badge">${fav}${label}</span>
+      <span class="badge">${badge}${label}</span>
       ${stamp ? `<span class="stamp">${esc(stamp)}</span>` : ''}
-      <div class="thumb-play"><span><svg><use href="#i-play" /></svg></span></div>
+      ${playsOf(v) ? '<div class="thumb-play"><span><svg><use href="#i-play" /></svg></span></div>' : ''}
       <div class="card-actions">
         <button class="icon-btn" data-act="edit" title="${esc(t('lb.edit'))}"><svg><use href="#i-edit" /></svg></button>
         <button class="icon-btn" data-act="del" title="${esc(t('delete'))}"><svg><use href="#i-trash" /></svg></button>
@@ -81,6 +79,19 @@ export function renderProviders() {
     [...seen.entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([k, label]) => `<option value="${esc(k)}"${k === keep ? ' selected' : ''}>${esc(label)}</option>`)
+      .join('');
+}
+
+export function renderTypes() {
+  const sel = $('#typeSel');
+  const keep = state.type;
+  const seen = new Map();
+  state.items.forEach((v) => seen.set(v.type, (seen.get(v.type) || 0) + 1));
+  sel.innerHTML =
+    `<option value="">${esc(t('filter.type.all'))}</option>` +
+    [...seen.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([k, n]) => `<option value="${esc(k)}"${k === keep ? ' selected' : ''}>${esc(t('type.' + k))} · ${n}</option>`)
       .join('');
 }
 
@@ -128,7 +139,7 @@ export function render() {
   $('#grid').hidden = list.length === 0;
   $('#count').textContent =
     t(state.items.length === 1 ? 'count.one' : 'count.other', { n: state.items.length }) +
-    (tokens.length || state.tags.size || state.provider || state.folder !== 'all' ? ' ' + t('count.shown', { n: list.length }) : '');
+    (tokens.length || state.tags.size || state.provider || state.type || state.folder !== 'all' ? ' ' + t('count.shown', { n: list.length }) : '');
   const empty = $('#empty');
   empty.hidden = list.length > 0;
   if (!state.items.length) {
@@ -140,6 +151,7 @@ export function render() {
   }
   renderTagbar();
   renderProviders();
+  renderTypes();
   renderFolderbar();
   renderFolderActions();
   renderSelectbar();

@@ -1,19 +1,22 @@
-/* ReelKeep dialogs — add item, edit details, move to folder.
+/* ReelKeep dialogs — add item (auto-detected type, overridable), edit details
+   (per-type panels from handlers), move to folder, import with preview + undo.
    All persistence goes through the library core. */
 
-import { $, $$, esc, assetUrl, hostOf, parseUrl, parseTime, fmtTime, debounce } from './util.mjs';
+import { $, $$, esc, assetUrl, hostOf, parseUrl, parseTime, fmtTime, debounce, fmtBytes } from './util.mjs';
 import { toast, confirmBox } from './ui.mjs';
 import {
-  state, byId, patch, addItem, removeItem, getStorage, copyCover, enrichUrl, createFolder,
+  state, byId, patch, addItem, removeItem, getStorage, copyCover, enrichUrl, createFolder, snapshot, save as saveNow,
 } from './library.mjs';
 import { PROVIDERS, detect, cleanTitle, normalizeEmbedUrl, providerLabel } from './providers.mjs';
-import { labelOf } from './handlers/registry.mjs';
+import { labelOf, allHandlers, detectType, coversOf } from './handlers/registry.mjs';
 import { canPickFrames } from './handlers/video.mjs';
 import { render, thumbnailFor, setSelecting } from './views.mjs';
-import { openThumbPicker, setThumbnail } from './thumbpicker.mjs';
+import { openThumbPicker, setThumbnail, resetCover } from './thumbpicker.mjs';
 import { moveIds, renameFolderPrompt, deleteFolder } from './folders.mjs';
 import { closePlayer } from './lightbox.mjs';
 import { autoThumbnail } from './auto.mjs';
+import { migrateLibrary } from './migrations.mjs';
+import { validateLibrary } from './schema.mjs';
 
 /* ================================================================ add */
 
@@ -21,8 +24,15 @@ const addDialog = $('#addDialog');
 let draft = null;
 let pickedFile = null;
 
+function typeOptions(selected) {
+  return allHandlers()
+    .map((h) => `<option value="${h.type}"${h.type === selected ? ' selected' : ''}>${esc(t('type.' + h.type))}</option>`)
+    .join('');
+}
+
 function newDraft() {
   draft = {
+    type: 'video',
     title: '',
     url: '',
     tags: [],
@@ -38,16 +48,19 @@ function newDraft() {
     favicon: '',
     site: '',
     duration: null,
+    meta: null,
   };
   pickedFile = null;
   $('#addUrl').value = '';
   $('#addEmbed').value = '';
   $('#addFile').value = '';
+  $('#addNote').value = '';
   $('#pvTitle').value = '';
   $('#pvTags').value = '';
   $('#pvStart').value = '';
   $('#pvNotes').value = '';
   $('#pvUseOg').checked = true;
+  setDetectedType('video', false);
   $('#pvFolder').innerHTML =
     `<option value="">${esc(t('folder.unfiled'))}</option>` +
     state.folders.map((f) => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
@@ -69,8 +82,18 @@ function setStatus(msg, kind = '') {
 
 function updateSave() {
   const tab = $('#addDialog .tab.active').dataset.tab;
-  const ok = tab === 'link' ? !!draft.url : tab === 'embed' ? !!draft.embedUrl : !!pickedFile;
+  const ok =
+    tab === 'link' ? !!draft.url : tab === 'embed' ? !!draft.embedUrl : tab === 'note' ? !!$('#addNote').value.trim() : !!pickedFile;
   $('#addSave').disabled = !ok;
+}
+
+function setDetectedType(type, auto) {
+  draft.type = type;
+  $('#pvType').innerHTML = typeOptions(type);
+  $('#pvTypeDetected').textContent = auto ? t('add.detected', { type: t('type.' + type) }) : '';
+  // playback extras only make sense for video
+  $('#pvStart').closest('.field').hidden = type !== 'video';
+  $('#pvUseOg').closest('.switch').hidden = ['note', 'file', 'pdf'].includes(type);
 }
 
 function paintPreview() {
@@ -79,10 +102,10 @@ function paintPreview() {
   holder.innerHTML = img
     ? `<img src="${esc(assetUrl(img))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><span class="ptime">${esc(t('preview.auto'))}</span>`
     : `<span class="placeholder">${esc(t('preview.none'))}</span>`;
-  $('#addPreview').hidden = !(draft.url || draft.embedUrl || pickedFile);
+  $('#addPreview').hidden = !(draft.url || draft.embedUrl || pickedFile || $('#addNote').value.trim());
   if (!$('#pvDetTitle').textContent) {
     $('#pvDetTitle').textContent = draft.title || hostOf(draft.url) || pickedFile?.name || '';
-    $('#pvDetSub').textContent = draft.url || draft.embedUrl ? providerLabel(draft) : '';
+    $('#pvDetSub').textContent = draft.url || draft.embedUrl ? (draft.type === 'video' ? providerLabel(draft) : t('type.' + draft.type)) : '';
   }
 }
 
@@ -99,6 +122,7 @@ const enrich = debounce(async (raw) => {
   if (!u) return;
   const found = detect(u.href);
   Object.assign(draft, { url: u.href, provider: found.provider, kind: found.kind, videoId: found.videoId || null });
+  setDetectedType(detectType({ url: u.href }), true);
   paintPreview();
   if (found.kind === 'invalid') return setStatus(t('st.invalid'), 'err');
   if (state.backend !== 'remote') return setStatus(t('st.localenrich'), 'err');
@@ -107,6 +131,7 @@ const enrich = debounce(async (raw) => {
     const meta = await enrichUrl(u.href);
     if (draft.url !== u.href) return; // superseded by a newer paste
     if (!meta || meta.error) throw new Error(meta?.error || 'no metadata');
+    draft.meta = meta;
     draft.site = meta.siteName || hostOf(meta.pageUrl || u.href);
     draft.favicon = meta.favicon || '';
     if (meta.image) draft.image = meta.image;
@@ -118,18 +143,18 @@ const enrich = debounce(async (raw) => {
     if (meta.duration) draft.duration = meta.duration;
     setDetected(
       clean || draft.title || hostOf(u.href),
-      `${providerLabel(draft)}${draft.site ? ' · ' + draft.site : ''}${draft.duration ? ' · ' + fmtTime(draft.duration) : ''}`,
+      `${draft.type === 'video' ? providerLabel(draft) : t('type.' + draft.type)}${draft.site ? ' · ' + draft.site : ''}${draft.duration ? ' · ' + fmtTime(draft.duration) : ''}`,
       true,
     );
-    if (found.kind === 'page' && meta.mediaUrl) {
+    if (draft.type === 'video' && found.kind === 'page' && meta.mediaUrl) {
       draft.kind = 'file';
       draft.provider = 'file';
       draft.fileUrl = meta.mediaUrl;
       setStatus(t('st.direct'), 'ok');
-    } else if (found.kind === 'page') {
+    } else if (draft.type === 'video' && found.kind === 'page') {
       setStatus(t('st.page'), '');
     } else {
-      setStatus(t('st.detected', { provider: providerLabel(draft) }), 'ok');
+      setStatus(t('st.detected', { provider: t('type.' + draft.type) }), 'ok');
     }
     paintPreview();
   } catch (err) {
@@ -153,6 +178,15 @@ $('#addUrl').addEventListener('keydown', (e) => {
 });
 $('#pvTitle').addEventListener('input', (e) => (draft.title = e.target.value));
 $('#pvUseOg').addEventListener('change', paintPreview);
+$('#pvType').addEventListener('change', (e) => {
+  draft.type = e.target.value;
+  $('#pvTypeDetected').textContent = '';
+  paintPreview();
+});
+$('#addNote').addEventListener('input', () => {
+  paintPreview();
+  updateSave();
+});
 
 $('#addEmbed').addEventListener('input', (e) => {
   const raw = e.target.value.trim();
@@ -163,6 +197,7 @@ $('#addEmbed').addEventListener('input', (e) => {
   draft.provider = PROVIDERS.youtube.test(hostOf(src || '')) ? 'youtube' : 'custom';
   if (src) {
     draft.url = draft.url || src;
+    setDetectedType('video', false);
     setStatus(t('st.embedok', { url: src }), 'ok');
   } else setStatus(t('st.embedhelp'), '');
   paintPreview();
@@ -173,12 +208,15 @@ const dropField = $('#dropField');
 $('#addFile').addEventListener('change', (e) => {
   pickedFile = e.target.files?.[0] || null;
   if (pickedFile) {
-    $('#dropLabel').textContent = `${pickedFile.name} · ${(pickedFile.size / 1048576).toFixed(1)} MB`;
+    $('#dropLabel').textContent = `${pickedFile.name} · ${fmtBytes(pickedFile.size)}`;
     if (!$('#pvTitle').value) $('#pvTitle').value = pickedFile.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ');
     draft.title = $('#pvTitle').value;
     draft.url = '';
-    draft.kind = 'file';
-    draft.provider = 'file';
+    setDetectedType(detectType({ file: pickedFile }), true);
+    if (draft.type === 'video') {
+      draft.kind = 'file';
+      draft.provider = 'file';
+    }
     setStatus(t('st.uploadok'), 'ok');
   }
   paintPreview();
@@ -193,9 +231,21 @@ $$('#addDialog .tab').forEach((tab) =>
     if (tab.dataset.tab === 'upload' && state.backend !== 'remote') {
       setStatus(t('st.uploadlocal'), 'err');
     }
+    if (tab.dataset.tab === 'note') setDetectedType('note', false);
     updateSave();
   }),
 );
+
+const commonInput = () => ({
+  title: ($('#pvTitle').value || draft.title || pickedFile?.name || hostOf(draft.url) || '').trim(),
+  tags: ($('#pvTags').value || '')
+    .split(',')
+    .map((tag) => tag.trim().replace(/^#/, ''))
+    .filter(Boolean)
+    .slice(0, 12),
+  notes: $('#pvNotes').value.trim(),
+  folderId: $('#pvFolder').value || '',
+});
 
 $('#addForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -203,43 +253,70 @@ $('#addForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   const tab = $('#addDialog .tab.active').dataset.tab;
   try {
-    let fileUrl = '';
-    if (tab === 'upload') {
+    let saved;
+    if (tab === 'note') {
+      saved = await addItem({ type: 'note', body: $('#addNote').value, ...commonInput() });
+    } else if (tab === 'upload') {
       $('#upProgress').hidden = false;
-      const stored = await getStorage().putFile('videos/', pickedFile, (pct) => ($('#upProgress').value = pct));
-      fileUrl = '/' + stored.replace(/^\/+/, '');
+      const dir = draft.type === 'video' ? 'videos/' : 'files/';
+      const stored = await getStorage().putFile(dir, pickedFile, (pct) => ($('#upProgress').value = pct));
+      const base = { ...commonInput(), path: stored, title: commonInput().title || pickedFile.name };
+      if (draft.type === 'video') {
+        const fileUrl = '/' + stored.replace(/^\/+/, '');
+        saved = await addItem({
+          ...base,
+          type: 'video',
+          url: fileUrl,
+          kind: 'file',
+          provider: 'file',
+          videoId: null,
+          embedUrl: '',
+          fileUrl,
+          startAt: parseTime($('#pvStart').value) ?? 0,
+          thumbnail: '',
+          thumbSource: 'auto',
+          thumbTime: null,
+          favicon: '',
+          site: '',
+          duration: null,
+          addedAt: new Date().toISOString(),
+        });
+      } else if (draft.type === 'file') {
+        saved = await addItem({ ...base, type: 'file', fileName: pickedFile.name, size: pickedFile.size, mime: pickedFile.type, blob: pickedFile });
+      } else {
+        saved = await addItem({ ...base, type: draft.type, mime: pickedFile.type, size: pickedFile.size });
+      }
+    } else {
+      // link / embed tabs
+      const wantOg = $('#pvUseOg').checked && draft.image;
+      const rawThumb = wantOg ? draft.image : draft.thumbnail;
+      const thumb = rawThumb && /^https?:/i.test(rawThumb) ? await copyCover(rawThumb, draft.url || undefined) : rawThumb || '';
+      const base = { ...commonInput(), site: draft.site, duration: draft.duration };
+      if (draft.type === 'video') {
+        saved = await addItem({
+          ...base,
+          type: 'video',
+          url: draft.url || draft.embedUrl,
+          kind: tab === 'embed' ? 'embed' : draft.kind,
+          provider: draft.provider,
+          videoId: draft.videoId,
+          embedUrl: draft.embedUrl || '',
+          fileUrl: draft.fileUrl || '',
+          startAt: parseTime($('#pvStart').value) ?? 0,
+          thumbnail: thumb,
+          thumbSource: wantOg ? 'page-image' : draft.thumbnail ? 'provider' : 'auto',
+          thumbTime: null,
+          favicon: draft.favicon,
+          addedAt: new Date().toISOString(),
+        });
+      } else {
+        const cover = thumb ? { kind: /^(thumbnails|files)\//.test(thumb) ? 'file' : 'url', path: thumb, origin: wantOg ? 'auto' : 'url' } : undefined;
+        saved = await addItem({ ...base, type: draft.type, url: draft.url || draft.embedUrl, meta: draft.meta, cover });
+      }
     }
-    const wantOg = $('#pvUseOg').checked && draft.image;
-    const rawThumb = wantOg ? draft.image : draft.thumbnail;
-    const thumb = rawThumb && /^https?:/i.test(rawThumb) ? await copyCover(rawThumb, draft.url || undefined) : rawThumb || '';
-    const rec = {
-      title: ($('#pvTitle').value || draft.title || pickedFile?.name || hostOf(draft.url) || 'Untitled').trim(),
-      url: draft.url || fileUrl,
-      kind: tab === 'upload' ? 'file' : draft.kind,
-      provider: tab === 'upload' ? 'file' : draft.provider,
-      videoId: draft.videoId,
-      embedUrl: draft.embedUrl || '',
-      fileUrl: fileUrl || draft.fileUrl || '',
-      tags: ($('#pvTags').value || '')
-        .split(',')
-        .map((tag) => tag.trim().replace(/^#/, ''))
-        .filter(Boolean)
-        .slice(0, 12),
-      notes: $('#pvNotes').value.trim(),
-      startAt: parseTime($('#pvStart').value) ?? 0,
-      thumbnail: thumb,
-      thumbSource: wantOg ? 'page-image' : draft.thumbnail ? 'provider' : 'auto',
-      thumbTime: null,
-      favicon: draft.favicon,
-      site: draft.site,
-      duration: draft.duration,
-      folderId: $('#pvFolder').value || '',
-      addedAt: new Date().toISOString(),
-    };
-    const saved = await addItem(rec);
     addDialog.close();
     toast(t('to.added', { title: saved.title }), 'ok');
-    if (saved.data?.kind === 'file') autoThumbnail(saved);
+    if (saved.type === 'video' && saved.data?.kind === 'file') autoThumbnail(saved);
     $('#grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
     setStatus(err.message, 'err');
@@ -255,7 +332,7 @@ export function openAdd(tabName) {
   newDraft();
   if (tabName) $(`#addDialog .tab[data-tab="${tabName}"]`)?.click();
   addDialog.showModal();
-  setTimeout(() => $('#addUrl').focus(), 40);
+  setTimeout(() => (tabName === 'note' ? $('#addNote') : $('#addUrl')).focus(), 40);
 }
 
 /* entry points for drag & drop */
@@ -273,14 +350,22 @@ export function addFromEmbed(raw) {
 export function addFromFile(file) {
   openAdd('upload');
   pickedFile = file;
-  $('#dropLabel').textContent = `${file.name} · ${(file.size / 1048576).toFixed(1)} MB`;
+  $('#dropLabel').textContent = `${file.name} · ${fmtBytes(file.size)}`;
   $('#pvTitle').value = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ');
   draft.title = $('#pvTitle').value;
   draft.url = '';
-  draft.kind = 'file';
-  draft.provider = 'file';
-  setDetected(file.name, `${(file.size / 1048576).toFixed(1)} MB`, true);
+  setDetectedType(detectType({ file }), true);
+  if (draft.type === 'video') {
+    draft.kind = 'file';
+    draft.provider = 'file';
+  }
+  setDetected(file.name, fmtBytes(file.size), true);
   paintPreview();
+  updateSave();
+}
+export function addFromText(text) {
+  openAdd('note');
+  $('#addNote').value = text;
   updateSave();
 }
 
@@ -300,18 +385,22 @@ export function paintEditThumb() {
 export function openEdit(id) {
   const v = byId(id);
   if (!v) return;
-  const d = v.data || {};
   editing = v;
   paintEditThumb();
   $('#edTitle').value = v.title || '';
   $('#edTags').value = (v.tags || []).join(', ');
-  $('#edStart').value = d.startAt ? fmtTime(d.startAt) : '';
   $('#edNotes').value = v.notes || '';
-  $('#edUrl').value = v.url || '';
-  $('#edEmbed').value = d.playerUrl || (d.kind === 'embed' ? PROVIDERS[d.provider]?.embed?.({ videoId: d.videoId }, 0) || '' : '');
-  $('#edKind').textContent = `${d.kind}${d.provider ? ' · ' + labelOf(v) : ''} · ${t(canPickFrames(v, state.backend) ? 'edit.frames.ok' : 'edit.frames.no')}`;
-  $('#edFrame').disabled = !canPickFrames(v, state.backend);
-  $('#edFrame').title = t(canPickFrames(v, state.backend) ? 'edit.frame.ok' : 'edit.frame.no');
+  const extra = $('#edExtra');
+  extra.textContent = '';
+  const handler = allHandlers().find((h) => h.type === v.type);
+  handler?.editExtra?.(extra, v, { t, esc });
+  if (v.type === 'video') {
+    const kind = extra.querySelector('#edKind');
+    if (kind) {
+      kind.textContent = `${v.data?.kind}${v.data?.provider ? ' · ' + labelOf(v) : ''} · ${t(canPickFrames(v, state.backend) ? 'edit.frames.ok' : 'edit.frames.no')}`;
+    }
+  }
+  $('.thumb-actions').hidden = !coversOf(v);
   if (!editDialog.open) editDialog.showModal();
 }
 
@@ -319,9 +408,8 @@ $('#edFrame').addEventListener('click', () => openThumbPicker(editing.id));
 
 $('#editForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const d = editing.data || {};
-  const embedOverride = normalizeEmbedUrl($('#edEmbed').value);
-  const autoEmbed = d.kind === 'embed' && PROVIDERS[d.provider]?.embed ? PROVIDERS[d.provider].embed({ videoId: d.videoId }, 0) : '';
+  const handler = allHandlers().find((h) => h.type === editing.type);
+  const extraPatch = handler?.collectEdit?.($('#edExtra'), editing) || {};
   patch(editing.id, {
     title: $('#edTitle').value.trim() || editing.title || 'Untitled',
     tags: ($('#edTags').value || '')
@@ -330,9 +418,7 @@ $('#editForm').addEventListener('submit', async (e) => {
       .filter(Boolean)
       .slice(0, 12),
     notes: $('#edNotes').value.trim(),
-    startAt: parseTime($('#edStart').value) ?? 0,
-    url: $('#edUrl').value.trim(),
-    embedUrl: embedOverride && embedOverride !== autoEmbed ? embedOverride : '',
+    ...extraPatch,
   });
   editDialog.close();
   toast(t('to.saved'), 'ok', 1800);
@@ -348,7 +434,7 @@ $('#edDelete').addEventListener('click', async () => {
 });
 
 $('#edDefault').addEventListener('click', async () => {
-  patch(editing.id, { thumbnail: '', thumbSource: 'auto', thumbTime: null });
+  resetCover(editing.id);
   openEdit(editing.id);
 });
 
@@ -416,6 +502,89 @@ $('#moveForm').addEventListener('submit', async (e) => {
   await moveIds(ids, target);
 });
 
+/* ====================================================== export / import */
+
+function download(filename, text) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+$('#exportBtn').addEventListener('click', async () => {
+  const bundle = snapshot();
+  const storage = getStorage();
+  if (storage?.allFiles) {
+    // browser-only mode: inline small files so the bundle round-trips alone
+    const files = await storage.allFiles();
+    const total = Object.values(files).reduce((n, v) => n + v.length, 0);
+    if (total <= 8 * 1024 * 1024) bundle.files = files;
+    else toast(t('export.toobig'), 'err', 6000);
+  }
+  download('reelkeep-library.json', JSON.stringify(bundle, null, 2));
+  toast(t('export.done'), 'ok');
+});
+
+const importDialog = $('#importDialog');
+let pendingImport = null;
+let undoSnapshot = null;
+
+$('#importBtn').addEventListener('click', () => $('#importFile').click());
+$('#importFile').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    return toast(t('import.bad'), 'err');
+  }
+  const res = migrateLibrary(parsed, { now: new Date().toISOString() });
+  if (res.invalid || res.readOnly) return toast(t('import.bad'), 'err');
+  const check = validateLibrary(res.data);
+  if (!check.ok) return toast(t('import.bad'), 'err');
+  const haveIds = new Set(state.items.map((i) => i.id));
+  const haveUrls = new Set(state.items.map((i) => i.url).filter(Boolean));
+  const fresh = res.data.items.filter((i) => !haveIds.has(i.id) && !(i.url && haveUrls.has(i.url)));
+  const dup = res.data.items.length - fresh.length;
+  const newFolders = res.data.folders.filter((f) => !state.folders.some((x) => x.id === f.id));
+  pendingImport = { items: fresh, folders: newFolders, files: parsed.files || null };
+  $('#imPreview').textContent = t('import.preview', { n: res.data.items.length, added: fresh.length, dup });
+  $('#imErrors').hidden = true;
+  $('#imOk').disabled = !fresh.length && !newFolders.length;
+  if (!fresh.length && !newFolders.length) $('#imPreview').textContent = t('import.none');
+  importDialog.showModal();
+});
+
+$('#imOk').addEventListener('click', async () => {
+  if (!pendingImport) return;
+  undoSnapshot = { items: state.items, folders: state.folders };
+  const storage = getStorage();
+  await storage?.createBackup?.('pre-import').catch(() => {});
+  if (pendingImport.files && storage?.importFiles) await storage.importFiles(pendingImport.files);
+  state.folders = [...state.folders, ...pendingImport.folders];
+  state.items = [...pendingImport.items, ...state.items];
+  pendingImport = null;
+  importDialog.close();
+  saveNow();
+  render();
+  toast(t('import.done', { n: undoSnapshot ? state.items.length - undoSnapshot.items.length : 0 }), 'ok', 8000, {
+    label: t('import.undo'),
+    fn: () => {
+      if (!undoSnapshot) return;
+      state.items = undoSnapshot.items;
+      state.folders = undoSnapshot.folders;
+      undoSnapshot = null;
+      saveNow();
+      render();
+      toast(t('import.undone'), '', 2500);
+    },
+  });
+});
+
 /* ====================================================== shared wiring */
 
 $$('[data-close]').forEach((b) =>
@@ -426,10 +595,10 @@ $$('[data-close]').forEach((b) =>
   }),
 );
 
-[addDialog, editDialog].forEach((d) =>
+[addDialog, editDialog, importDialog].forEach((d) =>
   d.addEventListener('click', (e) => {
     if (e.target === d) d.close();
   }),
 );
 
-export { addDialog, editDialog, moveDialog };
+export { addDialog, editDialog, moveDialog, importDialog };

@@ -41,7 +41,19 @@ export function createServerStorage() {
       if (relPath.startsWith('videos/')) {
         return uploadXhr(payload, onProgress);
       }
+      if (relPath.startsWith('files/')) {
+        const res = await fetch('/api/files?dir=files', {
+          method: 'POST',
+          headers: { 'X-File-Name': encodeURIComponent(payload.name || 'file.bin') },
+          body: payload,
+        });
+        const { path } = await jsonOrThrow(res);
+        return path;
+      }
       throw new Error(`unsupported file target: ${relPath}`);
+    },
+    async snapshotUrl(url) {
+      return jsonOrThrow(await fetch('/api/snapshot', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ url }) }));
     },
     async getFile(relPath) {
       const res = await fetch('/' + relPath.replace(/^\/+/, ''));
@@ -132,10 +144,14 @@ export function createLocalStorage() {
       localStorage.setItem(LS_KEY, JSON.stringify(data)); // quota errors propagate to the core
     },
     async putFile(relPath, payload) {
-      if (!relPath.startsWith('thumbnails/')) throw new Error(t('err.uploadlocal'));
+      const isThumb = relPath.startsWith('thumbnails/');
+      if (!isThumb && !relPath.startsWith('files/')) throw new Error(t('err.uploadlocal'));
       const dataUrl = typeof payload === 'string' ? payload : await blobToDataUrl(payload);
+      // browser storage is small: keep uploads honest about the quota
+      if (!isThumb && dataUrl.length > 4 * 1024 * 1024 * 1.37) throw new Error(t('err.toolargelocal'));
       const files = readFiles();
-      const key = `thumbnails/${Date.now()}_${Math.random().toString(36).slice(2, 10)}.jpg`;
+      const dir = isThumb ? 'thumbnails' : 'files';
+      const key = `${dir}/${Date.now()}_${Math.random().toString(36).slice(2, 10)}${isThumb ? '.jpg' : '.bin'}`;
       files[key] = dataUrl;
       writeFiles(files);
       return key;
@@ -154,6 +170,17 @@ export function createLocalStorage() {
     },
     async copyImageFromUrl(url) {
       return url; // no server to copy through — hotlink stays, honestly
+    },
+    /** all stored files as data URLs (export bundle); server files live on disk */
+    async allFiles() {
+      return readFiles();
+    },
+    async importFiles(map) {
+      const files = readFiles();
+      for (const [k, v] of Object.entries(map || {})) {
+        if (/^(thumbnails|files)\//.test(k) && typeof v === 'string' && v.startsWith('data:')) files[k] = v;
+      }
+      writeFiles(files);
     },
     async createBackup(reason) {
       const current = localStorage.getItem(LS_KEY);

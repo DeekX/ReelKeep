@@ -2,9 +2,8 @@
 
 import { $, $$, esc, parseUrl } from './util.mjs';
 import { state, byId } from './library.mjs';
-import { MEDIA_EXT } from './providers.mjs';
 import { moveIds } from './folders.mjs';
-import { addFromLink, addFromEmbed, addFromFile } from './dialogs.mjs';
+import { addFromLink, addFromEmbed, addFromFile, addFromText } from './dialogs.mjs';
 
 export const DRAG_MIME = 'application/x-reelkeep-ids';
 
@@ -79,11 +78,12 @@ window.addEventListener('drop', async (e) => {
   e.preventDefault();
   $('#dropzone').hidden = true;
   dragDepth = 0;
-  const file = [...(e.dataTransfer?.files || [])].find((f) => /^(video|audio)\//.test(f.type) || MEDIA_EXT.test(f.name));
+  const file = [...(e.dataTransfer?.files || [])][0];
   if (!file) {
     const link = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain');
-    if (link && parseUrl(link)) addFromLink(link);
-    else if (link && /<iframe/i.test(link)) addFromEmbed(link);
+    if (link && /<iframe/i.test(link)) addFromEmbed(link);
+    else if (link && parseUrl(link) && !link.includes('\n')) addFromLink(link);
+    else if (link && link.trim()) addFromText(link);
     return;
   }
   addFromFile(file);
