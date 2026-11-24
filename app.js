@@ -2,10 +2,15 @@
    Works against server.js (companion tier) or falls back to browser storage.
    This entry wires the modules together and boots the library. */
 
-import { $, $$ } from './js/util.mjs';
+import { $, $$, esc } from './js/util.mjs';
 import { toast } from './js/ui.mjs';
-import { state, byId, patch, addItem, removeItem, initLibrary, setOnChange, flushSave, getStorage } from './js/library.mjs';
+import { state, byId, patch, addItem, removeItem, initLibrary, setOnChange, flushSave, getStorage, warmFileUrls, snapshot } from './js/library.mjs';
 import { createServerStorage, createLocalStorage } from './js/storage.mjs';
+import {
+  createFolderStorage, createOpfsStorage, hasOpfs, hasFolderPicker,
+  saveFolderHandle, loadFolderHandle,
+} from './js/storage-handles.mjs';
+import { createIdbStorage, hasIdb } from './js/storage-idb.mjs';
 import { registerHandler } from './js/handlers/registry.mjs';
 import { videoHandler } from './js/handlers/video.mjs';
 import { linkHandler } from './js/handlers/link.mjs';
@@ -151,7 +156,7 @@ $('#langSel').addEventListener('change', (e) => setLocale(e.target.value));
 document.addEventListener('reelkeep:locale', () => {
   $('#langSel').value = i18nCurrent();
   render();
-  setBackend(state.backend);
+  setBackend(state.mode);
   if (editDialog.open && editingItem()) openEdit(editingItem().id);
   if ($('#lightbox').open && state.current) {
     paintLbMeta(state.current);
@@ -163,16 +168,111 @@ document.addEventListener('reelkeep:locale', () => {
 
 /* ============================================================== backend */
 
+let serverAvailable = false;
+let pendingFolder = null; // handle awaiting a permission gesture
+let savedMode = null; // last chosen mode, remembered across sessions
+
 function setBackend(mode) {
-  state.backend = mode;
+  state.mode = mode;
+  state.backend = mode === 'server' ? 'remote' : 'local';
+  const live = mode === 'server' || mode === 'folder';
   const el = $('#backend');
-  el.className = 'dot ' + (mode === 'remote' ? 'live' : 'local');
+  const offline = !!getStorage()?.offline;
+  el.className = 'dot ' + (live && !offline ? 'live' : 'local');
   const demo = /(^|\.)github\.io$/.test(location.hostname);
-  el.textContent = mode === 'remote' ? t('foot.remote') : t('foot.local');
-  $('#topDot').className = 'dot ' + (mode === 'remote' ? 'live' : 'local');
-  $('#topStatus').textContent = mode === 'remote' ? t('top.status.live') : t('top.status.local');
-  $('#tip').textContent = mode === 'remote' ? t('foot.tip.remote') : demo ? t('foot.tip.demo') : t('foot.tip.local');
+  el.textContent = offline
+    ? t('foot.offline')
+    : mode === 'server' ? t('foot.remote') : mode === 'folder' ? t('foot.folder') : mode === 'opfs' ? t('foot.opfs') : mode === 'idb' ? t('foot.idb') : t('foot.local');
+  $('#libPath').textContent =
+    mode === 'server' ? 'data/library.json' : mode === 'folder' ? `${state.folderName || 'folder'}/library.json` : mode === 'local' ? 'localStorage' : 'library.json';
+  $('#topDot').className = 'dot ' + (live ? 'live' : 'local');
+  $('#topStatus').textContent = live ? t('top.status.live') : t('top.status.local');
+  $('#tip').textContent = mode === 'server' ? t('foot.tip.remote') : demo ? t('foot.tip.demo') : t('foot.tip.local');
 }
+
+/* ------------------------------------------------------- storage mode UI */
+
+const modeDialog = $('#modeDialog');
+
+function paintModeList() {
+  const rows = [
+    { id: 'server', label: t('mode.server'), sub: t('mode.server.sub'), ok: serverAvailable },
+    { id: 'folder', label: t('mode.folder'), sub: t('mode.folder.sub'), ok: hasFolderPicker(), action: pendingFolder ? t('mode.folder.reconnect') : t('mode.folder.pick') },
+    { id: 'browser', label: t('mode.browser'), sub: t('mode.browser.sub'), ok: true },
+  ];
+  $('#modeList').innerHTML = rows
+    .map(
+      (r) => `<button type="button" class="mode-opt${state.mode === r.id || (r.id === 'browser' && ['opfs', 'idb', 'local'].includes(state.mode)) ? ' on' : ''}" data-mode="${r.id}" ${r.ok ? '' : 'disabled'}>
+        <span class="grow"><b>${esc(r.label)}</b><small>${esc(r.sub)}</small></span>
+        ${state.mode === r.id || (r.id === 'browser' && ['opfs', 'idb', 'local'].includes(state.mode)) ? `<span class="mode-cur">${esc(t('mode.current'))}</span>` : ''}
+        ${r.action && state.mode !== r.id ? `<span class="btn">${esc(r.action)}</span>` : ''}
+      </button>`,
+    )
+    .join('');
+}
+
+async function switchMode(storage, mode, folderName = '') {
+  try {
+    await flushSave().catch(() => {});
+    await storage.open();
+    const existing = await storage.readLibrary();
+    if (!existing) await storage.writeLibrary({ ...snapshot(), rev: 1 });
+    await initLibrary(storage);
+    state.folderName = folderName;
+    try {
+      localStorage.setItem('reelkeep.mode', mode);
+    } catch {
+      /* private mode */
+    }
+    await warmFileUrls();
+    setBackend(mode);
+    render();
+    modeDialog.close();
+    toast(t('mode.switched'), 'ok');
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+$('#modeBtn').addEventListener('click', () => {
+  paintModeList();
+  modeDialog.showModal();
+});
+
+$('#modeList').addEventListener('click', async (e) => {
+  const opt = e.target.closest('[data-mode]');
+  if (!opt || opt.disabled) return;
+  const which = opt.dataset.mode;
+  if (which === 'server') {
+    if (!serverAvailable) return toast(t('mode.needserver'), 'err');
+    return switchMode(createServerStorage(), 'server');
+  }
+  if (which === 'folder') {
+    try {
+      let handle = pendingFolder;
+      if (handle) {
+        const perm = await handle.requestPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') return toast(t('mode.denied'), 'err');
+      } else {
+        handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      }
+      await saveFolderHandle(handle);
+      pendingFolder = null;
+      return switchMode(createFolderStorage(handle), 'folder', handle.name);
+    } catch (err) {
+      if (err?.name !== 'AbortError') toast(t('mode.denied'), 'err');
+      return;
+    }
+  }
+  // browser storage: best available backend
+  if (hasOpfs()) return switchMode(createOpfsStorage(), 'opfs');
+  if (hasIdb()) return switchMode(createIdbStorage(), 'idb');
+  return switchMode(createLocalStorage(), 'local');
+});
+
+modeDialog.addEventListener('click', (e) => {
+  if (e.target === modeDialog) modeDialog.close();
+});
 
 /* ================================================================= boot */
 
@@ -193,41 +293,83 @@ async function boot() {
   applyGroup(savedGroup);
   $('#langSel').value = i18nCurrent();
   try {
+    savedMode = localStorage.getItem('reelkeep.mode');
+  } catch {
+    /* storage blocked */
+  }
+  try {
     const probe = await fetch('/api/state', { headers: { Accept: 'application/json' } });
     if (!probe.ok) throw new Error();
-    setBackend('remote');
+    serverAvailable = true;
   } catch {
-    setBackend('local');
+    serverAvailable = false;
   }
-  const storage = state.backend === 'remote' ? createServerStorage() : createLocalStorage();
+  let storage;
+  let mode;
+  let folderName = '';
+  // a remembered server mode stays server mode even offline: the adapter then
+  // serves the last synced copy read-only instead of silently switching tiers
+  if (serverAvailable || savedMode === 'server') {
+    storage = createServerStorage();
+    mode = 'server';
+  } else {
+    const saved = savedMode;
+    if (saved === 'folder' && hasFolderPicker()) {
+      const handle = await loadFolderHandle();
+      if (handle) {
+        const perm = await handle.queryPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+          storage = createFolderStorage(handle);
+          mode = 'folder';
+          folderName = handle.name;
+        } else {
+          pendingFolder = handle; // reconnect needs a user gesture (mode dialog)
+        }
+      }
+    }
+    if (!storage) {
+      if (saved === 'local' || (!hasOpfs() && !hasIdb())) {
+        storage = createLocalStorage();
+        mode = 'local';
+      } else if (hasOpfs()) {
+        storage = createOpfsStorage();
+        mode = 'opfs';
+      } else {
+        storage = createIdbStorage();
+        mode = 'idb';
+      }
+    }
+  }
+  state.folderName = folderName;
+  setBackend(mode);
+  try {
+    localStorage.setItem('reelkeep.mode', mode);
+  } catch {
+    /* private mode */
+  }
   try {
     await initLibrary(storage);
   } catch (err) {
     toast(t('to.loadfail', { err: err.message }), 'err');
   }
-  // Browser-only mode (GitHub Pages demo, file://): start from the example
-  // library once, so a first visit is never an empty grid.
-  if (state.backend !== 'remote' && !state.items.length) {
-    let touched = true;
+  setBackend(mode); // refresh after load: offline mirror may have engaged
+  // Browser-only modes: start from the example library once, so a first visit
+  // is never an empty grid.
+  if (mode !== 'server' && !state.items.length && !state.folders.length) {
     try {
-      touched = localStorage.getItem('video-gallery.v1') !== null;
-    } catch {
-      /* storage blocked */
-    }
-    if (!touched) {
-      try {
-        const res = await fetch('data/videos.example.json');
-        if (res.ok) {
-          const migrated = migrateLibrary(await res.json(), { now: new Date().toISOString() });
-          state.items = migrated.data.items || [];
-          state.folders = migrated.data.folders || [];
-          await storage.writeLibrary(migrated.data);
-        }
-      } catch {
-        /* offline or file:// — an empty gallery is fine */
+      const res = await fetch('data/videos.example.json');
+      if (res.ok) {
+        const migrated = migrateLibrary(await res.json(), { now: new Date().toISOString() });
+        state.items = migrated.data.items || [];
+        state.folders = migrated.data.folders || [];
+        state.rev = 1;
+        await storage.writeLibrary({ ...migrated.data, rev: 1 });
       }
+    } catch {
+      /* offline — an empty gallery is fine */
     }
   }
+  await warmFileUrls();
   render();
   // give playable videos without a cover their default frame (the opening shot)
   const missing = state.items
@@ -268,5 +410,33 @@ window.addEventListener('pagehide', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushSave().catch(() => {});
 });
+
+/* PWA: installable, offline app shell. Updates wait for an explicit reload so
+   a new version never yanks the rug mid-session. */
+let refreshing = false;
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker
+    .register('sw.js')
+    .then((reg) => {
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw?.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            toast(t('pwa.update'), '', 12000, {
+              label: t('pwa.reload'),
+              fn: () => {
+                refreshing = true;
+                nw.postMessage('SKIP_WAITING');
+              },
+            });
+          }
+        });
+      });
+    })
+    .catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) location.reload();
+  });
+}
 
 boot();

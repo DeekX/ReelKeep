@@ -10,24 +10,63 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 async function jsonOrThrow(res) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || res.statusText);
+    const err = new Error(body.error || res.statusText);
+    if (res.status === 409 && body.error === 'conflict') {
+      err.code = 'conflict';
+      err.rev = body.rev;
+    }
+    throw err;
   }
   return res.json();
 }
 
-/** Tier 3: the companion Node server. Atomic writes, real files on disk. */
+const MIRROR_KEY = 'reelkeep.mirror';
+
+function mirrorWrite(library) {
+  try {
+    localStorage.setItem(MIRROR_KEY, JSON.stringify(library));
+  } catch {
+    /* quota: offline fallback just won't be available */
+  }
+}
+function mirrorRead() {
+  try {
+    return JSON.parse(localStorage.getItem(MIRROR_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** Tier 3: the companion Node server. Atomic writes, real files on disk.
+    Offline: serves the last synced copy read-only, honestly labeled. */
 export function createServerStorage() {
   return {
     id: 'server',
     capabilities: { files: true, atomicWrite: true, multiTabSafe: false },
+    offline: false,
     async open() {},
     async readLibrary() {
-      const res = await fetch('/api/library', { headers: { Accept: 'application/json' } });
-      const { library } = await jsonOrThrow(res);
-      return library;
+      try {
+        const res = await fetch('/api/library', { headers: { Accept: 'application/json' } });
+        const { library } = await jsonOrThrow(res);
+        this.offline = false;
+        mirrorWrite(library);
+        return library;
+      } catch (err) {
+        if (err.code === 'conflict') throw err;
+        if (!(err instanceof TypeError)) throw err; // server answered with an error: don't mask it
+        const mirror = mirrorRead();
+        if (mirror) {
+          this.offline = true;
+          return mirror;
+        }
+        throw err;
+      }
     },
     async writeLibrary(data) {
       await jsonOrThrow(await fetch('/api/library', { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(data) }));
+      this.offline = false;
+      mirrorWrite(data);
     },
     /** Stores a cover (dataURL) or an upload (File/Blob); returns the stored relative path. */
     async putFile(relPath, payload, onProgress) {
@@ -106,13 +145,11 @@ function uploadXhr(file, onProgress) {
   });
 }
 
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(fr.result);
-    fr.onerror = () => reject(fr.error);
-    fr.readAsDataURL(blob);
-  });
+async function blobToDataUrl(blob) {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return `data:${blob.type || 'application/octet-stream'};base64,${btoa(bin)}`;
 }
 
 const LS_KEY = 'video-gallery.v1';
@@ -141,6 +178,15 @@ export function createLocalStorage() {
       }
     },
     async writeLibrary(data) {
+      let current = null;
+      try {
+        current = JSON.parse(localStorage.getItem(LS_KEY));
+      } catch {
+        /* unreadable: treat as absent */
+      }
+      if (current && typeof current.rev === 'number' && typeof data.rev === 'number' && current.rev >= data.rev) {
+        throw Object.assign(new Error('another tab saved first'), { code: 'conflict', rev: current.rev });
+      }
       localStorage.setItem(LS_KEY, JSON.stringify(data)); // quota errors propagate to the core
     },
     async putFile(relPath, payload) {

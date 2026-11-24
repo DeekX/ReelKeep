@@ -41,12 +41,27 @@ An existing `data/videos.json` from an older version is migrated automatically
 PowerShell uses `$env:PORT=8080; node server.js`. Read [SECURITY.md](SECURITY.md)
 before enabling LAN mode.
 
-**Browser-only mode:** served from any static host without the API (like the live
-demo), the app keeps your library in browser storage (footer says *browser storage
-only*) — no JSON file, no uploads, no automatic page titles. Run the server for the
-full experience. One honest limit: the UI is ES modules, which browsers refuse to
-load from `file://`, so double-clicking `index.html` no longer boots it — use the
-demo, any static server, or `node server.js`.
+**Install it:** ReelKeep is a PWA. In Chrome/Edge use *Install app* (or the browser's
+install icon); after the first load the whole app works offline. Updates arrive as
+a "new version ready — Reload" toast, never mid-session.
+
+**Three storage modes**, switchable from the footer's *Storage* button, always
+labeled with their limits:
+
+| Mode | Where the library lives | Needs |
+| --- | --- | --- |
+| Companion server | `data/library.json` + media folders on disk | `node server.js` |
+| Folder on this device | a folder you pick: `library.json`, `thumbnails/`, `files/`, `backups/` | Chrome/Edge desktop |
+| Browser storage | OPFS, else IndexedDB, else localStorage — inside the browser | any modern browser |
+
+Browser storage mode exports/imports a JSON bundle (small files inlined) so your
+library is never trapped. Two tabs on the same library merge safely — stale
+writes are refused and merged, never overwritten. If the server is unreachable,
+server mode shows the last synced copy read-only, clearly labeled.
+
+One honest limit: the UI is ES modules, which browsers refuse to load from
+`file://`, so double-clicking `index.html` no longer boots it — use the demo,
+any static server, or `node server.js`.
 
 ## Adding items — four ways
 

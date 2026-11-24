@@ -4,10 +4,17 @@ Three tiers share one data format (`data-format.md`). A user can start at tier 1
 and grow, or never leave it.
 
 ```
-Tier 1  Web app (browser-only today, PWA in Phase 3)   zero install, library in browser storage
+Tier 1  Web app (installable PWA)                        zero install; folder mode or browser storage
 Tier 2  Browser extension (Phase 4)                    one-click save, cross-origin metadata
 Tier 3  Companion server (node server.js)              files on disk, media proxy, enrichment
 ```
+
+Storage adapters (`js/storage.mjs`, `js/storage-handles.mjs`, `js/storage-idb.mjs`):
+`server`, `folder` (File System Access), `opfs`, `idb`, `local` (localStorage).
+All implement one contract; the library core is the only caller. Writes carry a
+revision; stale writes conflict and merge by `updatedAt` with deletion tombstones,
+announced over BroadcastChannel. Server mode keeps an offline mirror (read-only,
+labeled) for when the companion is unreachable.
 
 ## Internal layering
 

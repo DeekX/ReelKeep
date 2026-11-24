@@ -24,14 +24,19 @@ export const state = {
   selected: new Set(),
   limit: 60,
   backend: 'remote', // or 'local'
+  mode: 'server', // server | folder | opfs | idb | local
   current: null, // item open in the lightbox
   lastTime: 0,
   readOnly: false,
+  rev: 0, // library revision, for multi-tab safety
+  deleted: new Set(), // ids removed since the last load (merge tombstones)
 };
 
 let storage = null;
 let meta = null;
 let onChange = () => {};
+let channel = null;
+const tabId = Math.random().toString(36).slice(2);
 
 export const setOnChange = (fn) => (onChange = fn);
 export const getStorage = () => storage;
@@ -50,28 +55,101 @@ export async function initLibrary(st) {
     state.folders = res.data.folders || [];
     meta = res.data.meta || null;
   }
-  state.readOnly = !!res.readOnly || !!storage.readOnly;
+  state.readOnly = !!res.readOnly; // newer-schema library; offline is tracked on the adapter
+  state.rev = res.data?.rev || 0;
+  state.deleted.clear();
   if (res.changed && storage.id !== 'server') {
     // the server backs up its own migrations; browser storage backs up here
     await storage.createBackup('pre-migration').catch(() => {});
-    await storage.writeLibrary(res.data);
+    await storage.writeLibrary({ ...res.data, rev: state.rev + 1 });
+    state.rev += 1;
   }
+  if (typeof BroadcastChannel !== 'undefined' && !channel) {
+    channel = new BroadcastChannel('reelkeep-sync');
+    channel.onmessage = async (e) => {
+      const msg = e.data;
+      if (!msg || msg.tab === tabId || !(msg.rev > state.rev)) return;
+      const remote = await storage.readLibrary();
+      if (!remote || !(remote.rev > state.rev)) return;
+      mergeRemote(remote);
+      const contributed = JSON.stringify([state.items, state.folders]) !== JSON.stringify([remote.items, remote.folders]);
+      onChange();
+      if (contributed) save(); // persist our merged edits; otherwise stay quiet
+    };
+  }
+}
+
+/** Merge a newer remote library into memory: newer updatedAt wins per item,
+    local additions survive, local deletions stay deleted. Never overwrites blind. */
+export function mergeRemote(remote) {
+  const rItems = new Map((remote.items || []).map((i) => [i.id, i]));
+  const localOnly = state.items.filter((i) => !rItems.has(i.id) && !state.deleted.has(i.id));
+  const merged = (remote.items || [])
+    .filter((r) => !state.deleted.has(r.id))
+    .map((r) => {
+      const local = state.items.find((i) => i.id === r.id);
+      if (!local) return r;
+      return Date.parse(local.updatedAt || 0) > Date.parse(r.updatedAt || 0) ? local : r;
+    });
+  const rFolders = new Map((remote.folders || []).map((f) => [f.id, f]));
+  for (const f of state.folders) if (!rFolders.has(f.id)) rFolders.set(f.id, f);
+  state.items = [...localOnly, ...merged];
+  state.folders = [...rFolders.values()];
+  state.rev = remote.rev || 0;
+  state.deleted.clear();
+}
+
+/** Object URLs for handle-based adapters must be created async; warm them so
+    the sync getFileUrl() used by views can resolve covers and files. */
+export async function warmFileUrls() {
+  const st = getStorage();
+  if (!st?.fileUrl) return;
+  const paths = new Set();
+  for (const it of state.items) {
+    if (it.cover?.kind === 'file' && it.cover.path) paths.add(it.cover.path);
+    if (it.data?.filePath) paths.add(it.data.filePath);
+  }
+  await Promise.all([...paths].map((p) => st.fileUrl(p).catch(() => null)));
 }
 
 export function snapshot() {
   return {
     schemaVersion: SCHEMA_VERSION,
     meta: meta || { createdAt: nowIso(), app: 'reelkeep', appVersion: APP_VERSION },
+    rev: state.rev + 1,
     folders: state.folders,
     items: state.items,
   };
 }
 
+function broadcast() {
+  channel?.postMessage({ tab: tabId, rev: state.rev });
+}
+
 const persist = debounce(async () => {
-  if (!storage || state.readOnly) return;
+  if (!storage || state.readOnly || storage.readOnly || storage.offline) return;
   try {
     await storage.writeLibrary(snapshot());
+    state.rev += 1;
+    broadcast();
+    await warmFileUrls();
   } catch (err) {
+    if (err.code === 'conflict') {
+      // another tab or window saved first: merge, never overwrite blind
+      try {
+        const remote = await storage.readLibrary();
+        if (remote) {
+          mergeRemote(remote);
+          await storage.writeLibrary(snapshot());
+          state.rev += 1;
+          broadcast();
+          onChange();
+          return;
+        }
+      } catch {
+        /* fall through to the visible error below */
+      }
+    }
     toast(t('to.savefail', { err: err.message }), 'err', 6000);
     // roll back to what is actually stored rather than silently diverging
     try {
@@ -79,6 +157,7 @@ const persist = debounce(async () => {
       const res = migrateLibrary(raw ?? emptyLibrary(), { now: nowIso() });
       state.items = res.data.items || [];
       state.folders = res.data.folders || [];
+      state.rev = res.data?.rev || 0;
       onChange();
     } catch {
       /* storage unreachable — the error toast already told the user */
@@ -87,7 +166,11 @@ const persist = debounce(async () => {
 }, 300);
 
 export function save() {
-  if (state.readOnly) {
+  if (storage?.offline) {
+    toast(t('to.offline'), 'err', 5000);
+    return;
+  }
+  if (state.readOnly || storage?.readOnly) {
     toast(t('to.readonly'), 'err', 5000);
     return;
   }
@@ -96,7 +179,7 @@ export function save() {
 
 export async function flushSave() {
   persist.cancel();
-  if (storage && !state.readOnly) await storage.writeLibrary(snapshot());
+  if (storage && !state.readOnly && !storage.readOnly && !storage.offline) await storage.writeLibrary(snapshot());
 }
 
 /* ------------------------------------------------------------ mutations */
@@ -122,6 +205,7 @@ export async function addItem(input) {
   const handler = getHandler(input.type || 'video') || getHandler('link');
   const item = await handler.create(input, {});
   state.items.unshift(item);
+  await warmFileUrls();
   save();
   onChange();
   return item;
@@ -135,6 +219,7 @@ export async function removeItem(id) {
   }
   state.items = state.items.filter((v) => v.id !== id);
   state.selected.delete(id);
+  state.deleted.add(id);
   save();
   onChange();
 }
@@ -180,7 +265,10 @@ export async function removeFolder(id) {
   }
   state.folders = state.folders.filter((x) => x.id !== id);
   state.items = state.items.filter((v) => v.folderId !== id);
-  gone.forEach((v) => state.selected.delete(v.id));
+  gone.forEach((v) => {
+    state.selected.delete(v.id);
+    state.deleted.add(v.id);
+  });
   if (state.folder === id) state.folder = 'all';
   save();
   onChange();

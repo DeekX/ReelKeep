@@ -40,6 +40,7 @@ const MIME = {
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -64,8 +65,8 @@ const MIME = {
 // Only the UI and the media folders are reachable over HTTP. The library JSON,
 // the server source and repo internals (.git, package.json, …) must never be
 // served — HOST=0.0.0.0 puts this server on the LAN.
-const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js']);
-const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR, FILE_DIR, JS_DIR];
+const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js', 'manifest.webmanifest', 'sw.js']);
+const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR, FILE_DIR, JS_DIR, path.join(ROOT, 'icons')];
 const UPLOAD_EXT = new Set(['.mp4', '.m4v', '.webm', '.ogv', '.ogg', '.mov', '.mkv', '.mp3', '.m4a', '.wav']);
 
 [DATA_DIR, THUMB_DIR, VIDEO_DIR, FILE_DIR].forEach((d) => fs.mkdirSync(d, { recursive: true }));
@@ -487,6 +488,11 @@ const server = http.createServer(async (req, res) => {
         if (res2.readOnly) return send(res, 409, { error: 'library was written by a newer ReelKeep version' });
         const check = schema.validateLibrary(res2.data);
         if (!check.ok) return send(res, 400, { error: check.error });
+        // multi-tab safety: refuse stale whole-library writes
+        const stored = await store.load();
+        if (typeof stored.rev === 'number' && typeof res2.data.rev === 'number' && stored.rev >= res2.data.rev) {
+          return send(res, 409, { error: 'conflict', rev: stored.rev });
+        }
         await store.write(res2.data);
         return send(res, 200, { ok: true });
       }

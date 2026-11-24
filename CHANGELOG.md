@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.1.0] - 2026-11-24
+
+Browser-only mode becomes a first-class citizen, and the app installs.
+
+### Added
+- **PWA**: web app manifest, generated icons (192/512/maskable, dependency-free
+  PNG encoder in `scripts/gen-icons.mjs`), service worker caching the app shell
+  for offline use. Updates wait for an explicit "Reload" toast — no stuck old
+  versions, no mid-session rug-pull.
+- **Folder mode** (Chrome/Edge desktop): pick a real folder; `library.json`,
+  `thumbnails/`, `videos/`, `files/`, `backups/` live there, the same layout the
+  server uses. The directory handle persists in IndexedDB; permission is
+  re-requested gracefully via the storage dialog.
+- **Fallback modes**: OPFS where available, else IndexedDB, else localStorage —
+  capability-detected, never user-agent sniffed. The footer always states the
+  active mode and its limits; a storage dialog switches modes and carries the
+  library across.
+- **Multi-tab safety**: revision counter + BroadcastChannel. Stale whole-library
+  writes are refused (409/conflict) and merged by `updatedAt` with deletion
+  tombstones — two tabs never silently lose data (tested in both tiers).
+- **Offline mirror** for server mode: the last synced library is kept in browser
+  storage and served read-only, clearly labeled, when the server is unreachable.
+- Careful verified writes in handle storage: rolling backup → temp → verify →
+  main → verify; a crash never truncates the library.
+- Tests: storage conformance contract (server + local in Node, handle storage in
+  the browser smoke), merge/tombstone unit tests, multi-tab + offline smoke.
+
+### Fixed
+- Handle-storage write verification compared compact vs pretty JSON (false
+  failures on every save).
+- Going offline no longer silently switches storage tier; the remembered mode
+  is kept and the offline mirror engages instead.
+
 ## [2.0.0] - 2026-11-24
 
 The universal library: ReelKeep keeps everything now, not just video.

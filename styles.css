@@ -744,6 +744,27 @@ input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; border-radius: 
   .row { gap: 12px; }
   .field.short { flex: 1 1 140px; }
 }
+/* ============================================ storage mode */
+.foot-mode {
+  border: 0; background: none; padding: 2px 6px; margin-inline-start: 2px;
+  font: 10.5px var(--mono); color: var(--muted); cursor: pointer;
+  border-radius: 4px; text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.foot-mode:hover { color: var(--accent-soft); }
+.mode-list { display: flex; flex-direction: column; gap: 8px; }
+.mode-opt {
+  display: flex; align-items: center; gap: 12px; text-align: start;
+  padding: 12px 14px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius-s); color: var(--text); cursor: pointer;
+}
+.mode-opt:hover:not(:disabled) { border-color: var(--accent); }
+.mode-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+.mode-opt.on { border-color: var(--accent); }
+.mode-opt .grow { display: flex; flex-direction: column; gap: 3px; }
+.mode-opt b { font-size: 13px; }
+.mode-opt small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.mode-cur { font: 10px var(--mono); color: var(--ok); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+
 /* ============================================ universal item viewers */
 .badge .ticon { width: 12px; height: 12px; opacity: 0.85; }
 .lb-native {

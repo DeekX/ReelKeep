@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ReelKeep</title>
+    <meta name="theme-color" content="#101113" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2358a6ff'/><path d='M13 11l8 5-8 5z' fill='%23101113'/></svg>" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -451,11 +454,28 @@
 
     <footer class="libfoot">
       <span id="backend" class="dot">connecting…</span>
+      <button type="button" class="foot-mode" id="modeBtn" data-i18n-title="mode.btn" title="Storage mode"><span data-i18n="mode.btn">Storage</span></button>
       <span class="sep">·</span>
-      <span><span data-i18n="foot.library">library file</span> <code>data/library.json</code></span>
+      <span><span data-i18n="foot.library">library file</span> <code id="libPath">data/library.json</code></span>
       <span class="sep">·</span>
       <span id="tip">Tip: double-click a title to rename it, press <kbd>/</kbd> to search</span>
     </footer>
+
+    <!-- ---------------------------------------------------- storage mode -->
+    <dialog id="modeDialog" class="modal tiny">
+      <div class="modal-form">
+        <header class="modal-head">
+          <div class="modal-head-row"><h2 data-i18n="mode.title">Storage mode</h2></div>
+        </header>
+        <div class="modal-body">
+          <div class="mode-list" id="modeList"></div>
+        </div>
+        <footer class="modal-foot">
+          <div class="spacer"></div>
+          <button type="button" class="btn" data-close data-i18n="cancel">Cancel</button>
+        </footer>
+      </div>
+    </dialog>
 
     <script src="i18n.js" defer></script>
     <script type="module" src="app.js"></script>

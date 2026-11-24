@@ -1,6 +1,6 @@
 {
   "name": "reelkeep",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Local-first library for everything you want to keep: videos, articles, images, audio, PDFs, notes and files. Zero dependencies, no build step, plain JSON storage.",
   "main": "server.js",
   "scripts": {
