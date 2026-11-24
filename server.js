@@ -1,7 +1,11 @@
 /**
- * Reelkeep server — no dependencies, Node 18+.
+ * ReelKeep server — no dependencies, Node 18+.
  *   node server.js            http://localhost:5178
  *   PORT=8080 node server.js
+ *
+ * Persistence is the universal library (data/library.json, schema v2) behind
+ * lib/store.js. Legacy data/videos.json is read and migrated forward with a
+ * backup; the /api/videos* routes remain as a compatibility surface.
  */
 
 const http = require('http');
@@ -10,12 +14,14 @@ const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
 const { Readable } = require('stream');
+const { createStore } = require('./lib/store');
 
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
-const DB_FILE = path.join(DATA_DIR, 'videos.json');
 const THUMB_DIR = path.join(ROOT, 'thumbnails');
 const VIDEO_DIR = path.join(ROOT, 'videos');
+const FILE_DIR = path.join(ROOT, 'files');
+const JS_DIR = path.join(ROOT, 'js');
 const PORT = Number(process.env.PORT || 5178);
 const HOST = process.env.HOST || '127.0.0.1';
 
@@ -28,6 +34,7 @@ const UA =
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
@@ -54,54 +61,19 @@ const MIME = {
 // the server source and repo internals (.git, package.json, …) must never be
 // served — HOST=0.0.0.0 puts this server on the LAN.
 const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js']);
-const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR];
+const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR, FILE_DIR, JS_DIR];
 const UPLOAD_EXT = new Set(['.mp4', '.m4v', '.webm', '.ogv', '.ogg', '.mov', '.mkv', '.mp3', '.m4a', '.wav']);
 
-[DATA_DIR, THUMB_DIR, VIDEO_DIR].forEach((d) => fs.mkdirSync(d, { recursive: true }));
-if (!fs.existsSync(DB_FILE)) {
-  // First run: start from the bundled example library so the gallery isn't empty.
-  const example = path.join(DATA_DIR, 'videos.example.json');
-  if (fs.existsSync(example)) fs.copyFileSync(example, DB_FILE);
-  else fs.writeFileSync(DB_FILE, '{\n  "version": 1,\n  "videos": []\n}\n');
-}
+[DATA_DIR, THUMB_DIR, VIDEO_DIR, FILE_DIR].forEach((d) => fs.mkdirSync(d, { recursive: true }));
 
-/* --------------------------------------------------------------- db */
-
-async function readDb() {
-  try {
-    const db = JSON.parse(await fsp.readFile(DB_FILE, 'utf8'));
-    if (!Array.isArray(db.videos)) db.videos = [];
-    if (!Array.isArray(db.folders)) db.folders = [];
-    return db;
-  } catch (err) {
-    const backup = `${DB_FILE}.corrupt-${Date.now()}`;
-    try {
-      await fsp.rename(DB_FILE, backup);
-      console.error(`videos.json unreadable, moved to ${backup}`);
-    } catch (_) {
-      /* file may not exist */
-    }
-    return { version: 1, videos: [] };
-  }
-}
-
-let writeQueue = Promise.resolve();
-function writeDb(db) {
-  const tmp = `${DB_FILE}.${process.pid}.tmp`;
-  writeQueue = writeQueue
-    .then(() => fsp.writeFile(tmp, JSON.stringify(db, null, 2), 'utf8'))
-    .then(() => fsp.rename(tmp, DB_FILE))
-    .catch((err) => console.error('write failed', err));
-  return writeQueue;
-}
-
-const newId = () => 'v_' + crypto.randomUUID().slice(0, 12);
+let store; // universal persistence, initialized before listen
+let schema; // shared schema helpers (ESM, loaded by the store)
 
 /* ------------------------------------------------------------ utils */
 
 function send(res, code, body, headers = {}) {
   const data = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff', ...headers });
   res.end(data);
 }
 
@@ -135,11 +107,20 @@ function inside(dir, target) {
 }
 
 function extFromMime(type = '') {
-  if (type.includes('jpeg')) return '.jpg';
+  if (type.includes('jpeg') || type.includes('jpg')) return '.jpg';
   if (type.includes('png')) return '.png';
   if (type.includes('webp')) return '.webp';
   if (type.includes('gif')) return '.gif';
+  if (type.includes('avif')) return '.avif';
   return '.jpg';
+}
+
+const coverFileOf = (item) =>
+  item.cover?.kind === 'file' && /^thumbnails\//.test(item.cover.path || '') ? item.cover.path : null;
+
+async function removeCover(item) {
+  const rel = coverFileOf(item);
+  if (rel && schema.isSafeRelPath(rel)) await fsp.rm(path.join(ROOT, rel), { force: true });
 }
 
 /* ------------------------------------------------------- page metadata */
@@ -189,7 +170,6 @@ async function enrich(target) {
       headers: {
         'User-Agent': UA,
         Accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
-        'Accept-Language': 'en',
         // bypass EU consent walls that otherwise return a cookie-less shell page
         Cookie: 'CONSENT=YES+1; SOCS=CAI',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -333,6 +313,7 @@ async function proxyMedia(req, res, target, referer) {
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'no-store',
     'Cross-Origin-Resource-Policy': 'same-origin',
+    'X-Content-Type-Options': 'nosniff',
     'X-Upstream-Status': String(upstream.status),
   };
   // Only Content-Range is copied: it carries the total size the player needs to seek.
@@ -382,145 +363,228 @@ async function saveUpload(req, declaredName) {
 
 /* -------------------------------------------------------------- static */
 
-function serveStatic(req, res, absPath) {
+function serveStatic(req, res, absPath, relFromRoot) {
   fs.stat(absPath, (err, stat) => {
     if (err || !stat.isFile()) return send(res, 404, { error: 'not found' });
-    const type = MIME[path.extname(absPath).toLowerCase()] || 'application/octet-stream';
-    const headers = {
-      'Content-Type': type,
-      'Accept-Ranges': 'bytes',
-      'Cache-Control': absPath.startsWith(VIDEO_DIR) ? 'no-store' : 'no-cache',
-    };
-    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
-    if (range && (range[1] || range[2])) {
-      let start;
-      let end;
-      if (range[1]) {
-        start = Number(range[1]);
-        end = range[2] ? Math.min(Number(range[2]), stat.size - 1) : stat.size - 1;
-      } else {
-        start = Math.max(0, stat.size - Number(range[2]));
-        end = stat.size - 1;
+    // never follow a symlink out of the allowed roots
+    fs.realpath(absPath, (err2, real) => {
+      if (err2) return send(res, 404, { error: 'not found' });
+      const allowed = PUBLIC_FILES.has(relFromRoot) || PUBLIC_DIRS.some((d) => inside(d, real));
+      if (!allowed) return send(res, 404, { error: 'not found' });
+      const type = MIME[path.extname(absPath).toLowerCase()] || 'application/octet-stream';
+      const headers = {
+        'Content-Type': type,
+        'Accept-Ranges': 'bytes',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': absPath.startsWith(VIDEO_DIR) || absPath.startsWith(FILE_DIR) ? 'no-store' : 'no-cache',
+      };
+      // generic files download rather than render in the app origin
+      if (absPath.startsWith(FILE_DIR)) headers['Content-Disposition'] = 'attachment';
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+      if (range && (range[1] || range[2])) {
+        let start;
+        let end;
+        if (range[1]) {
+          start = Number(range[1]);
+          end = range[2] ? Math.min(Number(range[2]), stat.size - 1) : stat.size - 1;
+        } else {
+          start = Math.max(0, stat.size - Number(range[2]));
+          end = stat.size - 1;
+        }
+        if (start >= stat.size || end < start) {
+          return res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` }).end();
+        }
+        headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
+        headers['Content-Length'] = end - start + 1;
+        res.writeHead(206, headers);
+        return fs.createReadStream(absPath, { start, end }).on('error', () => res.end()).pipe(res);
       }
-      if (start >= stat.size || end < start) {
-        return res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` }).end();
-      }
-      headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
-      headers['Content-Length'] = end - start + 1;
-      res.writeHead(206, headers);
-      return fs.createReadStream(absPath, { start, end }).on('error', () => res.end()).pipe(res);
-    }
-    headers['Content-Length'] = stat.size;
-    res.writeHead(200, headers);
-    fs.createReadStream(absPath).on('error', () => res.end()).pipe(res);
+      headers['Content-Length'] = stat.size;
+      res.writeHead(200, headers);
+      fs.createReadStream(absPath).on('error', () => res.end()).pipe(res);
+    });
   });
 }
 
 /* --------------------------------------------------------------- routes */
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const p = url.pathname;
   try {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const p = url.pathname;
     if (p.startsWith('/api/') || p === '/media') {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-File-Name');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       if (req.method === 'OPTIONS') return res.writeHead(204).end();
 
+      /* -------------------------------------------- universal library */
+
+      if (p === '/api/library' && req.method === 'GET') {
+        const lib = await store.load();
+        return send(res, 200, { library: lib, readOnly: store.isReadOnly() });
+      }
+
+      if (p === '/api/library' && req.method === 'PUT') {
+        const body = await readJson(req);
+        const res2 = store.migrations.migrateLibrary(body, { now: new Date().toISOString() });
+        if (res2.invalid) return send(res, 400, { error: 'not a library' });
+        if (res2.readOnly) return send(res, 409, { error: 'library was written by a newer ReelKeep version' });
+        const check = schema.validateLibrary(res2.data);
+        if (!check.ok) return send(res, 400, { error: check.error });
+        await store.write(res2.data);
+        return send(res, 200, { ok: true });
+      }
+
+      if (p === '/api/items' && req.method === 'POST') {
+        const body = await readJson(req);
+        if (!body || typeof body.type !== 'string') return send(res, 400, { error: 'item needs a type' });
+        const now = new Date().toISOString();
+        const item = { ...body, id: body.id || schema.newId('i'), createdAt: body.createdAt || now, updatedAt: now };
+        if (item.cover?.kind === 'file' && !schema.isSafeRelPath(item.cover.path)) {
+          return send(res, 400, { error: 'unsafe cover path' });
+        }
+        const lib = await store.load();
+        lib.items.unshift(item);
+        await store.write(lib);
+        return send(res, 201, { item });
+      }
+
+      const imatch = /^\/api\/items\/([\w-]+)$/.exec(p);
+      if (imatch && imatch[1] !== 'move') {
+        const lib = await store.load();
+        const idx = lib.items.findIndex((v) => v.id === imatch[1]);
+        if (idx === -1) return send(res, 404, { error: 'no such item' });
+        if (req.method === 'PATCH') {
+          const body = await readJson(req);
+          const prev = lib.items[idx];
+          lib.items[idx] = { ...prev, ...body, id: prev.id, data: { ...prev.data, ...(body.data || {}) }, updatedAt: new Date().toISOString() };
+          await store.write(lib);
+          return send(res, 200, { item: lib.items[idx] });
+        }
+        if (req.method === 'DELETE') {
+          const [gone] = lib.items.splice(idx, 1);
+          await removeCover(gone);
+          await store.write(lib);
+          return send(res, 200, { ok: true });
+        }
+      }
+
+      if ((p === '/api/items/move' || p === '/api/videos/move') && req.method === 'POST') {
+        const { ids, folderId } = await readJson(req);
+        if (!Array.isArray(ids)) return send(res, 400, { error: 'ids must be an array' });
+        const lib = await store.load();
+        const target = folderId || null;
+        if (target && !lib.folders.some((f) => f.id === target)) return send(res, 404, { error: 'no such folder' });
+        let moved = 0;
+        lib.items.forEach((v) => {
+          if (ids.includes(v.id)) {
+            v.folderId = target;
+            moved++;
+          }
+        });
+        await store.write(lib);
+        return send(res, 200, { moved });
+      }
+
+      if (p === '/api/files' && req.method === 'DELETE') {
+        const rel = url.searchParams.get('path') || '';
+        if (!schema.isSafeRelPath(rel) || !/^(thumbnails|videos|files)\//.test(rel)) {
+          return send(res, 400, { error: 'unsafe file path' });
+        }
+        await fsp.rm(path.join(ROOT, rel), { force: true });
+        return send(res, 200, { ok: true });
+      }
+
+      if (p === '/api/backups' && req.method === 'GET') {
+        return send(res, 200, { backups: await store.listBackups() });
+      }
+      if (p === '/api/backups' && req.method === 'POST') {
+        const body = await readJson(req).catch(() => ({}));
+        const name = await store.createBackup(body.reason || 'manual');
+        return send(res, 201, { name });
+      }
+
+      /* ------------------------------------- legacy v1 compatibility */
+
       if (p === '/api/state' && req.method === 'GET') {
-        const db = await readDb();
-        return send(res, 200, { version: 1, videos: db.videos, folders: db.folders });
+        const lib = await store.load();
+        return send(res, 200, {
+          version: 1,
+          videos: lib.items.filter((i) => i.type === 'video').map(schema.itemToLegacy),
+          folders: lib.folders.map(schema.legacyFolderView),
+        });
       }
 
       if (p === '/api/folders' && req.method === 'POST') {
         const body = await readJson(req);
         const name = String(body.name || '').trim().slice(0, 60);
         if (!name) return send(res, 400, { error: 'folder needs a name' });
-        const folder = { id: 'f_' + crypto.randomUUID().slice(0, 12), name, createdAt: new Date().toISOString() };
-        const db = await readDb();
-        db.folders.push(folder);
-        await writeDb(db);
-        return send(res, 201, { folder });
+        const folder = { id: schema.newId('f'), name, createdAt: new Date().toISOString() };
+        const lib = await store.load();
+        folder.order = lib.folders.length;
+        lib.folders.push(folder);
+        await store.write(lib);
+        return send(res, 201, { folder: schema.legacyFolderView(folder) });
       }
 
       const fmatch = /^\/api\/folders\/([\w-]+)$/.exec(p);
       if (fmatch) {
-        const db = await readDb();
-        const idx = db.folders.findIndex((f) => f.id === fmatch[1]);
+        const lib = await store.load();
+        const idx = lib.folders.findIndex((f) => f.id === fmatch[1]);
         if (idx === -1) return send(res, 404, { error: 'no such folder' });
         if (req.method === 'PATCH') {
           const body = await readJson(req);
           const name = String(body.name || '').trim().slice(0, 60);
           if (!name) return send(res, 400, { error: 'folder needs a name' });
-          db.folders[idx] = { ...db.folders[idx], name };
-          await writeDb(db);
-          return send(res, 200, { folder: db.folders[idx] });
+          lib.folders[idx] = { ...lib.folders[idx], name };
+          await store.write(lib);
+          return send(res, 200, { folder: schema.legacyFolderView(lib.folders[idx]) });
         }
         if (req.method === 'DELETE') {
           const id = fmatch[1];
-          db.folders.splice(idx, 1);
-          const gone = db.videos.filter((v) => v.folderId === id);
-          db.videos = db.videos.filter((v) => v.folderId !== id);
-          await writeDb(db);
-          for (const v of gone) {
-            if (v.thumbnail?.startsWith?.('thumbnails/')) await fsp.rm(path.join(ROOT, v.thumbnail), { force: true });
-          }
+          lib.folders.splice(idx, 1);
+          const gone = lib.items.filter((v) => v.folderId === id);
+          lib.items = lib.items.filter((v) => v.folderId !== id);
+          await store.write(lib);
+          for (const v of gone) await removeCover(v);
           return send(res, 200, { ok: true, deleted: gone.length });
         }
       }
 
-      if (p === '/api/videos/move' && req.method === 'POST') {
-        const { ids, folderId } = await readJson(req);
-        if (!Array.isArray(ids)) return send(res, 400, { error: 'ids must be an array' });
-        const db = await readDb();
-        const target = folderId || '';
-        if (target && !db.folders.some((f) => f.id === target)) return send(res, 404, { error: 'no such folder' });
-        let moved = 0;
-        db.videos.forEach((v) => {
-          if (ids.includes(v.id)) {
-            v.folderId = target;
-            moved++;
-          }
-        });
-        await writeDb(db);
-        return send(res, 200, { moved });
-      }
-
       if (p === '/api/videos' && req.method === 'POST') {
         const body = await readJson(req);
-        const video = {
-          ...body,
-          id: newId(),
-          addedAt: new Date().toISOString(),
-          lastOpenedAt: null,
-        };
-        const db = await readDb();
-        db.videos.unshift(video);
-        await writeDb(db);
-        return send(res, 201, { video });
+        const now = new Date().toISOString();
+        const item = schema.legacyToItem(
+          { ...body, id: undefined, addedAt: now, lastOpenedAt: null },
+          { id: schema.newId('v'), now },
+        );
+        const lib = await store.load();
+        lib.items.unshift(item);
+        await store.write(lib);
+        return send(res, 201, { video: schema.itemToLegacy(item) });
       }
 
       const match = /^\/api\/videos\/([\w-]+)$/.exec(p);
       if (match && match[1] !== 'upload' && match[1] !== 'move') {
-        const db = await readDb();
-        const idx = db.videos.findIndex((v) => v.id === match[1]);
+        const lib = await store.load();
+        const idx = lib.items.findIndex((v) => v.id === match[1]);
         if (idx === -1) return send(res, 404, { error: 'no such video' });
         if (req.method === 'PATCH') {
           const body = await readJson(req);
-          db.videos[idx] = { ...db.videos[idx], ...body, id: db.videos[idx].id };
-          await writeDb(db);
-          return send(res, 200, { video: db.videos[idx] });
+          schema.applyLegacyPatch(lib.items[idx], body);
+          await store.write(lib);
+          return send(res, 200, { video: schema.itemToLegacy(lib.items[idx]) });
         }
         if (req.method === 'DELETE') {
-          const [gone] = db.videos.splice(idx, 1);
-          if (gone?.thumbnail?.startsWith?.('thumbnails/')) {
-            await fsp.rm(path.join(ROOT, gone.thumbnail), { force: true });
-          }
-          await writeDb(db);
+          const [gone] = lib.items.splice(idx, 1);
+          await removeCover(gone);
+          await store.write(lib);
           return send(res, 200, { ok: true });
         }
       }
+
+      /* ---------------------------------------------- media & covers */
 
       if (p === '/api/thumbnails' && req.method === 'POST') {
         const { dataUrl } = await readJson(req);
@@ -553,7 +617,9 @@ const server = http.createServer(async (req, res) => {
           clearTimeout(timer);
         }
         if (buf.length > 15 * 1024 * 1024) return send(res, 413, { error: 'image larger than 15 MB' });
-        const ext = path.extname(new URL(image).pathname).toLowerCase().replace(/^\.(jpe?g|png|webp|gif|avif)$/, '.$1') || extFromMime(type);
+        // extension comes from the content type only — a hostile URL path must
+        // never decide how a file is served (stored-XSS via .html "images")
+        const ext = extFromMime(type);
         const name = `thumbnails/${Date.now()}_${crypto.randomUUID().slice(0, 8)}${ext}`;
         await fsp.writeFile(path.join(ROOT, name), buf);
         return send(res, 201, { thumbnail: name });
@@ -590,9 +656,9 @@ const server = http.createServer(async (req, res) => {
     const publicFile = PUBLIC_FILES.has(relFromRoot);
     const publicMedia = PUBLIC_DIRS.some((d) => abs !== d && inside(d, abs));
     if (!publicFile && !publicMedia) return send(res, 404, { error: 'not found' });
-    return serveStatic(req, res, abs);
+    return serveStatic(req, res, abs, relFromRoot);
   } catch (err) {
-    console.error(`${req.method} ${p} ->`, err.message);
+    console.error(`${req.method} ${req.url} ->`, err.message);
     return send(res, err.status || 500, { error: err.message });
   }
 });
@@ -625,9 +691,21 @@ process.on('uncaughtException', (err) => {
   console.error('ignored fatal error:', err?.message || err);
 });
 
-server.listen(PORT, HOST, () => {
-  const port = server.address().port;
-  console.log(`  reelkeep  ->  http://${HOST}:${port}`);
-  console.log(`  library file   ->  ${DB_FILE}`);
-  console.log(`  stop with Ctrl+C`);
-});
+let appVersion = '0.0.0';
+try {
+  appVersion = require('./package.json').version;
+} catch {
+  /* minimal deployments and single-file binaries may not ship package.json */
+}
+
+(async () => {
+  store = await createStore({ root: ROOT, appVersion });
+  schema = store.schema;
+  await store.load(); // migrate legacy libraries at startup, before serving
+  server.listen(PORT, HOST, () => {
+    const port = server.address().port;
+    console.log(`  reelkeep  ->  http://${HOST}:${port}`);
+    console.log(`  library file   ->  ${store.LIB_FILE}`);
+    console.log(`  stop with Ctrl+C`);
+  });
+})();

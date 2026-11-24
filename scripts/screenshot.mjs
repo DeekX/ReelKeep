@@ -118,14 +118,14 @@ try {
   await sleep(700); // let the card entrance animation settle
   await shoot('screenshot-grid.png');
 
-  await evaluate(`applyView('list')`);
+  await evaluate(`ReelKeep.applyView('list')`);
   await sleep(500);
   await shoot('screenshot-list.png');
-  await evaluate(`applyView('grid')`);
+  await evaluate(`ReelKeep.applyView('grid')`);
   await sleep(300);
 
   // The built-in file player, mid-film, with its chrome visible.
-  await evaluate(`openPlayer('v_ex0000000002')`);
+  await evaluate(`ReelKeep.openPlayer('v_ex0000000002')`);
   await waitFor(
     () =>
       evaluate(`(() => {
@@ -141,22 +141,22 @@ try {
   await shoot('screenshot-player.png');
 
   // The frame picker: scrub bar, live preview canvas, timestamp controls.
-  await evaluate(`closePlayer(); openThumbPicker('v_ex0000000002')`);
-  await waitFor(() => evaluate(`typeof thumbVideoReady !== 'undefined' && thumbVideoReady`), 30000, 'frame picker ready');
+  await evaluate(`ReelKeep.closePlayer(); ReelKeep.openThumbPicker('v_ex0000000002')`);
+  await waitFor(() => evaluate(`ReelKeep.isPickerReady()`), 30000, 'frame picker ready');
   await sleep(1500); // seek + canvas draw
   await shoot('screenshot-frames.png');
 
   // Per-source sections, then the folder move dialog with a live selection.
-  await evaluate(`thumbDialog.close(); applyGroup(true)`);
+  await evaluate(`ReelKeep.thumbDialog.close(); ReelKeep.applyGroup(true)`);
   await sleep(600);
   await shoot('screenshot-groups.png');
-  await evaluate(`applyGroup(false); setSelecting(true); toggleSelect('v_ex0000000001'); toggleSelect('v_ex0000000004'); openMove()`);
+  await evaluate(`ReelKeep.applyGroup(false); ReelKeep.setSelecting(true); ReelKeep.toggleSelect('v_ex0000000001'); ReelKeep.toggleSelect('v_ex0000000004'); ReelKeep.openMove()`);
   await sleep(400);
   await shoot('screenshot-move.png');
 
   // Mid-drag: bottom drop-dock with large targets and a solid hot chip.
   await evaluate(`(() => {
-    moveDialog.close(); setSelecting(false);
+    ReelKeep.moveDialog.close(); ReelKeep.setSelecting(false);
     const card = document.querySelector('.card[data-id="v_ex0000000002"]');
     const chip = document.querySelector('#folderbar [data-folder="f_ex0000000002"]');
     const dt = new DataTransfer();
@@ -171,15 +171,15 @@ try {
   await sleep(300);
 
   // Right-to-left layout, for the README languages section.
-  await evaluate(`moveDialog.close(); setSelecting(false); setLocale('ar')`);
+  await evaluate(`ReelKeep.moveDialog.close(); ReelKeep.setSelecting(false); ReelKeep.setLocale('ar')`);
   await sleep(700);
   await shoot('screenshot-rtl.png');
 
   // Add dialog (merged Figma structure) and the mobile layout.
-  await evaluate(`setLocale('en'); openAdd()`);
+  await evaluate(`ReelKeep.setLocale('en'); ReelKeep.openAdd()`);
   await sleep(500);
   await shoot('screenshot-add.png');
-  await evaluate(`addDialog.close()`);
+  await evaluate(`ReelKeep.addDialog.close()`);
   await send('Emulation.setDeviceMetricsOverride', { width: 376, height: 812, deviceScaleFactor: 1, mobile: true });
   await sleep(700);
   await shoot('screenshot-mobile.png');

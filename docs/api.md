@@ -2,12 +2,26 @@
 
 The server (`server.js`) exposes a small JSON API plus static files. All
 endpoints are same-origin by design; CORS headers are permissive so the
-gallery also works when opened from `file://` against a running server.
+gallery also works when opened from another origin against a running server.
 
-Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `413`,
-`415` or `502`.
+Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `409`,
+`413`, `415` or `502`.
 
-## Library
+## Universal library (v2, current clients)
+
+| Method | Path | Body / query | Response |
+| --- | --- | --- | --- |
+| GET | `/api/library` | — | `{ library, readOnly }` — full schema-v2 library (see [data-format.md](data-format.md)); legacy files are migrated on load with a backup |
+| PUT | `/api/library` | whole library | `200 { ok }` — validated, atomic write; `409` if the payload's schemaVersion is newer than the server understands |
+| POST | `/api/items` | universal item | `201 { item }` — server assigns `id`/`createdAt` when absent |
+| PATCH | `/api/items/:id` | partial item (`data` merged shallowly) | `200 { item }` — `id` cannot change |
+| DELETE | `/api/items/:id` | — | `200 { ok }` — removes a stored cover in `thumbnails/` |
+| POST | `/api/items/move` | `{ ids, folderId }` (`''`/null = unfiled) | `200 { moved }` |
+| DELETE | `/api/files` | `?path=thumbnails/…\|videos/…\|files/…` | `200 { ok }` — traversal-checked |
+| GET | `/api/backups` | — | `{ backups: [{ name, size, modifiedAt }] }` |
+| POST | `/api/backups` | `{ reason }` | `201 { name }` — rolling backup of the library file |
+
+## Legacy v1 compatibility (kept for old clients and tests)
 
 | Method | Path | Body / query | Response |
 | --- | --- | --- | --- |
@@ -38,12 +52,19 @@ Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `413`,
 ## Static files
 
 Only these are served: `/` (`index.html`), `/player.html`, `/app.js`,
-`/styles.css`, and anything under `/thumbnails/` and `/videos/`.
+`/styles.css`, `/i18n.js`, anything under `/js/` (ES modules), and anything
+under `/thumbnails/`, `/videos/` and `/files/`.
 Video responses support `Range` requests (`206` + `Content-Range`).
-Everything else — including `data/videos.json` and repository internals —
-returns `404`.
+Symlinks out of the allowed roots are refused; `X-Content-Type-Options: nosniff`
+is set; files under `/files/` download with `Content-Disposition: attachment`.
+Everything else — including `data/library.json`, `data/videos.json`, `backups/`
+and repository internals — returns `404`.
 
-## Video record
+## Legacy video record (v1)
+
+The universal item schema is documented in [data-format.md](data-format.md).
+The legacy routes below accept and return this v1 shape; the server maps it
+losslessly to/from universal items (`js/schema.mjs`).
 
 ```jsonc
 {

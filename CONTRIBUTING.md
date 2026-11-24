@@ -66,7 +66,8 @@ if the server is not on port 5178.
 
 1. Fork and branch from `main`.
 2. Keep the change focused; one concern per PR.
-3. `npm test` green, and `node --check server.js app.js` clean.
+3. `npm test` green, and `npm run check` clean (syntax-checks every script;
+   `app.js` is an ES-module entry, the rest of `js/` is `.mjs`).
 4. Describe what you changed, why, and how you verified it (OS + Node version).
    Screenshots help for UI changes.
 

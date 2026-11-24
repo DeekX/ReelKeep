@@ -1,8 +1,12 @@
 # Personal library and media — never publish these
 data/videos.json
 data/videos.json.*
+data/library.json
+data/library.json.*
+backups/
 videos/
 thumbnails/
+files/
 
 # Local tooling / runtime
 .qwen/

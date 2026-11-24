@@ -23,6 +23,9 @@ before(async () => {
   for (const f of ['server.js', 'index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js']) {
     await fsp.copyFile(path.join(ROOT, f), path.join(dir, f));
   }
+  for (const d of ['lib', 'js']) {
+    await fsp.cp(path.join(ROOT, d), path.join(dir, d), { recursive: true });
+  }
   // start from the golden fixture instead of the example seed
   await fsp.copyFile(GOLDEN, path.join(dir, 'data', 'videos.json'));
 
@@ -157,11 +160,12 @@ test('static range requests: suffix range and unsatisfiable range', async () => 
 });
 
 test('corrupt library is quarantined with .corrupt- suffix and state stays empty', async () => {
-  await fsp.writeFile(path.join(dir, 'data', 'videos.json'), '{broken');
+  // live file since the v2 migration; the legacy videos.json relic stays untouched
+  await fsp.writeFile(path.join(dir, 'data', 'library.json'), '{broken');
   const db = await (await get('/api/state')).json();
   assert.deepEqual(db.videos, []);
-  // v1 quirk: the recovery envelope has no folders key at all (dropped in JSON)
-  assert.equal(db.folders, undefined);
-  const quarantined = (await fsp.readdir(path.join(dir, 'data'))).filter((f) => /^videos\.json\.corrupt-\d+$/.test(f));
+  // fixed in Phase 1: the recovery envelope now always includes folders
+  assert.deepEqual(db.folders, []);
+  const quarantined = (await fsp.readdir(path.join(dir, 'data'))).filter((f) => /^library\.json\.corrupt-\d+$/.test(f));
   assert.equal(quarantined.length, 1);
 });

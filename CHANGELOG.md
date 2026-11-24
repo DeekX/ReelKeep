@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.6.0] - 2026-11-24
+
+Foundations for the universal library (roadmap Phases 0–1). No visible UI change;
+existing libraries load exactly as before.
+
+### Added
+- `docs/audit.md`: full code audit (module map, data flow, every route, every
+  read/write and remote fetch, known bugs) plus a golden v1 fixture and
+  characterization tests pinning the semantics the refactor must preserve.
+- Universal item schema v2 (`docs/data-format.md`): one envelope for every item
+  type, type-specific `data`, forward-compatible (unknown fields preserved).
+- Migration framework (`js/migrations.mjs`): ordered, pure, idempotent;
+  `data/videos.json` → `data/library.json` on first load with an automatic
+  backup in `backups/`; the legacy file is never deleted. Newer-schema
+  libraries open read-only and are never rewritten.
+- Storage interface (`js/storage.mjs`) with server and browser-storage adapters;
+  library core (`js/library.mjs`) with serialized, debounced whole-library saves
+  flushed on tab hide, and rollback + visible error when a save fails.
+- Item handler registry with `video` and generic `link` handlers; adding a type
+  is now a new handler file plus registration.
+- `app.js` split into ES modules (`js/`): views, lightbox, dialogs, thumbnail
+  picker, folders, drag & drop, keyboard, auto-enrichment. No bundler.
+- New API: `GET/PUT /api/library`, `/api/items` CRUD + move, `DELETE /api/files`,
+  `GET/POST /api/backups`. Legacy `/api/videos*`, `/api/folders*`, `/api/state`
+  kept as a compatibility surface over the universal store.
+- Tests: migration losslessness/idempotency/future-version (unit), server
+  migration integration (backup, legacy preservation, restart), i18n key parity
+  across all 11 languages, `npm run check` syntax lint in CI.
+- `docs/architecture.md`, `docs/data-format.md`; `backups/`, `files/`,
+  `data/library.json` gitignored.
+
+### Fixed
+- Twitch embeds never played: the parser's `kind: 'vods'/'clip'` overwrote the
+  record kind, bypassing the provider embed branch. Detection fixed; migration
+  normalizes existing records.
+- Stored-XSS via `/api/thumbnails/from-url`: the saved extension came from the
+  URL path, so a hostile "image" at `…/evil.html` was served as HTML from the
+  app origin. Extension now derives from the content type only.
+- Corrupt-library recovery returned an envelope without `folders`; it now
+  always includes both arrays.
+- Write failures were swallowed (`console.error` only); they now propagate to
+  the caller and surface in the UI.
+- Symlinks inside media folders could escape the served roots; realpaths are
+  re-checked. `nosniff` on all responses; `/files/` downloads as attachment.
+- Malformed Host header could throw outside the route try/catch.
+- Hard-coded English card-action titles and preview strings now go through i18n
+  (all 11 languages); duplicate `Accept-Language` header in enrich removed.
+
+### Changed
+- Branding standardized to **ReelKeep** everywhere (UI, README, docs, player);
+  favicon and demo badge use the broadcast-blue accent instead of retired indigo.
+- Storage file is `data/library.json`; footer, docs and translations updated.
+- Honest limit: ES modules do not load from `file://`, so double-clicking
+  `index.html` no longer boots the app. Browser-only mode works over any static
+  host (as the live demo does); `node server.js` remains the full experience.
+
 ## [1.5.0] - 2026-11-22
 
 ### Added

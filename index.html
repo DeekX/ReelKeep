@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Reelkeep</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235e6ad2'/><path d='M13 11l8 5-8 5z' fill='white'/></svg>" />
+    <title>ReelKeep</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2358a6ff'/><path d='M13 11l8 5-8 5z' fill='%23101113'/></svg>" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -43,7 +43,7 @@
       <div class="brand">
         <span class="logo"><svg><use href="#i-film" /></svg></span>
         <div>
-          <h1>Reelkeep</h1>
+          <h1>ReelKeep</h1>
           <p id="count" class="count">loading…</p>
         </div>
       </div>
@@ -415,12 +415,12 @@
     <footer class="libfoot">
       <span id="backend" class="dot">connecting…</span>
       <span class="sep">·</span>
-      <span><span data-i18n="foot.library">library file</span> <code>data/videos.json</code></span>
+      <span><span data-i18n="foot.library">library file</span> <code>data/library.json</code></span>
       <span class="sep">·</span>
       <span id="tip">Tip: double-click a title to rename it, press <kbd>/</kbd> to search</span>
     </footer>
 
     <script src="i18n.js" defer></script>
-    <script src="app.js" defer></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>

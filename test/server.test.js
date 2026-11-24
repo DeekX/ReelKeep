@@ -23,6 +23,9 @@ before(async () => {
   for (const f of ['server.js', 'index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js']) {
     await fsp.copyFile(path.join(ROOT, f), path.join(dir, f));
   }
+  for (const d of ['lib', 'js']) {
+    await fsp.cp(path.join(ROOT, d), path.join(dir, d), { recursive: true });
+  }
   await fsp.copyFile(path.join(ROOT, 'data', 'videos.example.json'), path.join(dir, 'data', 'videos.example.json'));
 
   child = spawn(process.execPath, ['server.js'], {
@@ -180,7 +183,8 @@ test('folders: create, rename, bulk move, delete unfiles', async () => {
 });
 
 test('a corrupt library file is quarantined, not fatal', async () => {
-  await fsp.writeFile(path.join(dir, 'data', 'videos.json'), '{ this is not json');
+  // the live file is data/library.json since the v2 migration (videos.json is kept as a legacy relic)
+  await fsp.writeFile(path.join(dir, 'data', 'library.json'), '{ this is not json');
   const res = await get('/api/state');
   assert.equal(res.status, 200);
   assert.deepEqual((await res.json()).videos, []);

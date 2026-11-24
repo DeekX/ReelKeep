@@ -1,4 +1,4 @@
-# Reelkeep
+# ReelKeep
 
 A local-first video library. Paste **any** video link, watch it in a unified player,
 give it the cover you want, and keep everything in a plain JSON file.
@@ -6,9 +6,9 @@ give it the cover you want, and keep everything in a plain JSON file.
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node >= 18](https://img.shields.io/badge/node-%E2%89%A5%2018-339933)](https://nodejs.org)
 [![CI](https://github.com/DeekX/ReelKeep/actions/workflows/ci.yml/badge.svg)](https://github.com/DeekX/ReelKeep/actions/workflows/ci.yml)
-[![Live demo](https://img.shields.io/badge/demo-live-5e6ad2)](https://deekx.github.io/ReelKeep/)
+[![Live demo](https://img.shields.io/badge/demo-live-58a6ff)](https://deekx.github.io/ReelKeep/)
 
-![Reelkeep gallery](docs/screenshot-grid.png)
+![ReelKeep gallery](docs/screenshot-grid.png)
 
 **No build step, no `npm install`, no database.** One dependency-free Node server
 plus vanilla HTML/CSS/JS — clone it and run.
@@ -27,7 +27,9 @@ node server.js        # or: npm start
 
 Then open **http://127.0.0.1:5178**. The first run seeds a small example library
 (Blender open movies, a Vimeo timelapse, an Internet Archive item) so you can try
-everything immediately — delete the entries or edit `data/videos.json` to make it yours.
+everything immediately — delete the entries or edit `data/library.json` to make it yours.
+An existing `data/videos.json` from an older version is migrated automatically
+(with a backup in `backups/`) and left in place.
 
 | Want | Windows (cmd) | macOS / Linux |
 | --- | --- | --- |
@@ -38,9 +40,12 @@ everything immediately — delete the entries or edit `data/videos.json` to make
 PowerShell uses `$env:PORT=8080; node server.js`. Read [SECURITY.md](SECURITY.md)
 before enabling LAN mode.
 
-If you open `index.html` by double-clicking it instead, the page still works, but it
-falls back to browser storage (footer says *browser storage only*) — no JSON file, no
-uploads, no automatic page titles. Run the server for the full experience.
+**Browser-only mode:** served from any static host without the API (like the live
+demo), the app keeps your library in browser storage (footer says *browser storage
+only*) — no JSON file, no uploads, no automatic page titles. Run the server for the
+full experience. One honest limit: the UI is ES modules, which browsers refuse to
+load from `file://`, so double-clicking `index.html` no longer boots it — use the
+demo, any static server, or `node server.js`.
 
 ## Adding videos — four ways
 
@@ -141,32 +146,38 @@ with folder filters, tag filters, search and both layouts, and the choice is rem
 ## Where things live
 
 ```
-data/videos.json         your library — plain JSON, safe to edit or version-control
+data/library.json        your library — plain JSON, safe to edit or version-control
+data/videos.json         legacy library (v1): read and migrated, never deleted
 data/videos.example.json starter library copied on first run
+backups/                 automatic backups before migrations and risky writes
 thumbnails/              covers the app generated or copied
 videos/                  files you uploaded
-server.js                static server + JSON store + metadata reader + media proxy
+files/                   other uploaded files (later phases)
+server.js + lib/         static server + universal store + metadata reader + media proxy
 index.html               the gallery UI
 player.html              the in-iframe player used for video files
-app.js / styles.css      gallery logic and styling
+app.js + js/             ES-module app: core, storage, handlers, views, dialogs
+styles.css               the visual layer (screening-room identity)
 i18n.js                  11 language dictionaries + translation runtime
-test/server.test.js      zero-dependency smoke suite (npm test)
-scripts/screenshot.mjs   dev tool: refresh the README screenshots
-docs/                    screenshots and API reference
+test/                    zero-dependency suites (npm test)
+scripts/                 dev tools: syntax check, README screenshots
+docs/                    architecture, data format, API reference, screenshots
 ```
 
-`videos.json` is written atomically (temp file + rename), so a crash mid-save cannot
-truncate your library.
+`library.json` is written atomically (temp file + rename), so a crash mid-save cannot
+truncate your library. See [docs/data-format.md](docs/data-format.md) for the schema
+and [docs/architecture.md](docs/architecture.md) for the module layout.
 
-`.gitignore` keeps `data/videos.json`, `videos/` and `thumbnails/` out of git — pushing
-this repo never publishes your personal library or media. The HTTP server likewise only
-serves the UI files and your media folders; the library JSON and repo internals are
-never reachable over the network.
+`.gitignore` keeps `data/library.json`, `data/videos.json`, `backups/`, `videos/`,
+`files/` and `thumbnails/` out of git — pushing this repo never publishes your personal
+library or media. The HTTP server likewise only serves the UI files and your media
+folders; the library JSON and repo internals are never reachable over the network.
 
 ## Development
 
 ```sh
-npm test              # node:test smoke suite — no dependencies to install
+npm test              # node:test suites — no dependencies to install
+npm run check         # syntax-check every script (also runs in CI)
 npm run screenshot    # refresh docs/screenshot-*.png (Node 22+, Chrome installed)
 ```
 

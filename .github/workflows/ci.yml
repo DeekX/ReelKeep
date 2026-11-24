@@ -19,5 +19,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       # Zero runtime dependencies: nothing to install, the suite uses node:test.
-      - run: node --check server.js
+      - run: node scripts/check-syntax.mjs
       - run: npm test

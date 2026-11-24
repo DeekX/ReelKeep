@@ -134,6 +134,21 @@ OPTIONS 204. **No CSRF/origin checks, no auth, no security headers, no CSP.**
 14. **Dark theme only**; no `prefers-color-scheme`, no manual override.
 15. **No key-parity test** for the 11 dictionaries; no `?` help overlay; no
     light theme; no PWA; no trash/backups/importers/exporters.
+16. **Twitch embeds broken** (found by the new characterization tests): Twitch's
+    `parse()` returned `kind:'vods'`/`'clip'`, which `detect()` spread over
+    `kind:'embed'`. `frameSrc()` then skipped the provider-embed branch and
+    loaded the raw twitch.tv page (which refuses framing). Fixed in the Phase 1
+    module split; migration normalizes existing records.
+
+## Phase 1 outcome (2026-11-24)
+
+Bugs 1–8 and 16 above are fixed; 9 (branding) standardized. The module split,
+universal schema, migrations, storage interface and handlers landed (v1.6.0).
+New honest limit introduced by the ES-module split: browsers refuse modules
+over `file://`, so the double-click fallback is gone (documented in README and
+architecture.md); browser-only mode works over any static host. Remaining
+audit items (SSRF, CSRF, auth, headers, perf, trash, importers…) are scheduled
+in Phases 2–6 per ROADMAP.md.
 
 ## What the roadmap can skip (already done)
 
