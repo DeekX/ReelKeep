@@ -1,0 +1,15 @@
+# ReelKeep companion server. Set a password before starting:
+#   REELKEEP_PASSWORD=... docker compose up -d
+services:
+  reelkeep:
+    build: .
+    ports:
+      - "127.0.0.1:5178:5178"
+    environment:
+      REELKEEP_PASSWORD: ${REELKEEP_PASSWORD:?set REELKEEP_PASSWORD before starting}
+    volumes:
+      - reelkeep-data:/data
+    restart: unless-stopped
+
+volumes:
+  reelkeep-data:

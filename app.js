@@ -266,9 +266,54 @@ $('#modeList').addEventListener('click', async (e) => {
     }
   }
   // browser storage: best available backend
-  if (hasOpfs()) return switchMode(createOpfsStorage(), 'opfs');
-  if (hasIdb()) return switchMode(createIdbStorage(), 'idb');
-  return switchMode(createLocalStorage(), 'local');
+  const b = pickBrowser();
+  return switchMode(b.storage, b.mode);
+});
+
+function pickBrowser() {
+  if (hasOpfs()) return { storage: createOpfsStorage(), mode: 'opfs' };
+  if (hasIdb()) return { storage: createIdbStorage(), mode: 'idb' };
+  return { storage: createLocalStorage(), mode: 'local' };
+}
+
+/* password auth: login dialog at boot and on mid-session 401 */
+function loginFlow() {
+  return new Promise((resolve) => {
+    const dlg = $('#loginDialog');
+    $('#loginError').hidden = true;
+    $('#loginPassword').value = '';
+    const done = (v) => {
+      dlg.close();
+      resolve(v);
+    };
+    $('#loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: $('#loginPassword').value }),
+      });
+      if (res.ok) return done(true);
+      const err = $('#loginError');
+      err.hidden = false;
+      err.textContent = res.status === 429 ? t('auth.wait') : t('auth.bad');
+    };
+    $('#loginBrowser').onclick = () => done(false);
+    dlg.showModal();
+    setTimeout(() => $('#loginPassword').focus(), 40);
+  });
+}
+
+document.addEventListener('reelkeep:auth', async () => {
+  const ok = await loginFlow();
+  if (ok) {
+    await initLibrary(getStorage());
+    await warmFileUrls();
+    render();
+  } else {
+    const b = pickBrowser();
+    await switchMode(b.storage, b.mode);
+  }
 });
 
 modeDialog.addEventListener('click', (e) => {
@@ -298,12 +343,21 @@ async function boot() {
   } catch {
     /* storage blocked */
   }
+  let session = null;
   try {
-    const probe = await fetch('/api/state', { headers: { Accept: 'application/json' } });
+    const probe = await fetch('/api/session', { headers: { Accept: 'application/json' } });
     if (!probe.ok) throw new Error();
+    session = await probe.json();
     serverAvailable = true;
   } catch {
     serverAvailable = false;
+  }
+  if (serverAvailable && session.required && !session.authenticated) {
+    const unlocked = await loginFlow();
+    if (!unlocked) {
+      serverAvailable = false;
+      savedMode = 'browser';
+    }
   }
   let storage;
   let mode;

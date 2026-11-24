@@ -7,6 +7,18 @@ gallery also works when opened from another origin against a running server.
 Errors are JSON: `{ "error": "message" }` with status `400`, `404`, `409`,
 `413`, `415` or `502`.
 
+## Auth (when `REELKEEP_PASSWORD` is set)
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| GET | `/api/session` | — | `{ required, authenticated }` |
+| POST | `/api/login` | `{ password }` | `200 { ok }` + `Set-Cookie: rk_session=…; HttpOnly; SameSite=Strict`; `401` wrong; `429` rate-limited |
+| POST | `/api/logout` | — | clears the cookie |
+
+All other `/api/*` and `/media` requests return `401` without a valid session
+cookie. The UI shell stays public so the login dialog can load. See
+[deploy.md](deploy.md) for the full environment reference.
+
 ## Universal library (v2, current clients)
 
 | Method | Path | Body / query | Response |

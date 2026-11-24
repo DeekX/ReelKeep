@@ -12,6 +12,9 @@ files/
 .qwen/
 node_modules/
 dist/
+sea-prep.blob
+sea-config.json
+sea-manifest.json
 *.log
 
 # OS / editor noise

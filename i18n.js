@@ -2771,6 +2771,77 @@ const I18N_EXT = {
 };
 for (const lang of Object.keys(I18N_EXT)) Object.assign(I18N_LOCALES[lang], I18N_EXT[lang]);
 
+/* Password auth strings (Phase 5). */
+const I18N_AUTH = {
+  en: {
+    'auth.title': 'Unlock your library', 'auth.sub': 'This server requires a password.',
+    'auth.password': 'Password', 'auth.unlock': 'Unlock',
+    'auth.bad': 'Wrong password', 'auth.wait': 'Too many attempts — wait a few minutes',
+    'auth.browser': 'Use browser storage instead', 'to.auth': 'Session expired — unlock again',
+  },
+  ar: {
+    'auth.title': 'افتح مكتبتك', 'auth.sub': 'هذا الخادم يتطلب كلمة مرور.',
+    'auth.password': 'كلمة المرور', 'auth.unlock': 'فتح',
+    'auth.bad': 'كلمة مرور خاطئة', 'auth.wait': 'محاولات كثيرة — انتظر بضع دقائق',
+    'auth.browser': 'استخدم تخزين المتصفح بدلاً من ذلك', 'to.auth': 'انتهت الجلسة — افتح مجددًا',
+  },
+  ru: {
+    'auth.title': 'Откройте библиотеку', 'auth.sub': 'Этот сервер требует пароль.',
+    'auth.password': 'Пароль', 'auth.unlock': 'Открыть',
+    'auth.bad': 'Неверный пароль', 'auth.wait': 'Слишком много попыток — подождите несколько минут',
+    'auth.browser': 'Использовать хранилище браузера', 'to.auth': 'Сессия истекла — откройте снова',
+  },
+  fr: {
+    'auth.title': 'Déverrouillez votre bibliothèque', 'auth.sub': 'Ce serveur exige un mot de passe.',
+    'auth.password': 'Mot de passe', 'auth.unlock': 'Déverrouiller',
+    'auth.bad': 'Mot de passe incorrect', 'auth.wait': 'Trop de tentatives — attendez quelques minutes',
+    'auth.browser': 'Utiliser le stockage du navigateur', 'to.auth': 'Session expirée — déverrouillez à nouveau',
+  },
+  de: {
+    'auth.title': 'Bibliothek entsperren', 'auth.sub': 'Dieser Server verlangt ein Passwort.',
+    'auth.password': 'Passwort', 'auth.unlock': 'Entsperren',
+    'auth.bad': 'Falsches Passwort', 'auth.wait': 'Zu viele Versuche — einige Minuten warten',
+    'auth.browser': 'Stattdessen Browserspeicher nutzen', 'to.auth': 'Sitzung abgelaufen — erneut entsperren',
+  },
+  es: {
+    'auth.title': 'Desbloquea tu biblioteca', 'auth.sub': 'Este servidor requiere una contraseña.',
+    'auth.password': 'Contraseña', 'auth.unlock': 'Desbloquear',
+    'auth.bad': 'Contraseña incorrecta', 'auth.wait': 'Demasiados intentos: espera unos minutos',
+    'auth.browser': 'Usar almacenamiento del navegador', 'to.auth': 'Sesión caducada: desbloquea de nuevo',
+  },
+  zh: {
+    'auth.title': '解锁你的库', 'auth.sub': '此服务器需要密码。',
+    'auth.password': '密码', 'auth.unlock': '解锁',
+    'auth.bad': '密码错误', 'auth.wait': '尝试次数过多——请等待几分钟',
+    'auth.browser': '改用浏览器存储', 'to.auth': '会话已过期——请重新解锁',
+  },
+  ja: {
+    'auth.title': 'ライブラリのロック解除', 'auth.sub': 'このサーバーにはパスワードが必要です。',
+    'auth.password': 'パスワード', 'auth.unlock': 'ロック解除',
+    'auth.bad': 'パスワードが違います', 'auth.wait': '試行が多すぎます——数分待ってください',
+    'auth.browser': '代わりにブラウザストレージを使う', 'to.auth': 'セッション期限切れ——再度ロック解除',
+  },
+  ko: {
+    'auth.title': '라이브러리 잠금 해제', 'auth.sub': '이 서버에는 비밀번호가 필요합니다.',
+    'auth.password': '비밀번호', 'auth.unlock': '잠금 해제',
+    'auth.bad': '잘못된 비밀번호', 'auth.wait': '시도가 너무 많습니다 — 몇 분 기다리세요',
+    'auth.browser': '대신 브라우저 저장소 사용', 'to.auth': '세션 만료 — 다시 잠금 해제',
+  },
+  hi: {
+    'auth.title': 'लाइब्रेरी अनलॉक करें', 'auth.sub': 'इस सर्वर को पासवर्ड चाहिए।',
+    'auth.password': 'पासवर्ड', 'auth.unlock': 'अनलॉक',
+    'auth.bad': 'गलत पासवर्ड', 'auth.wait': 'बहुत अधिक प्रयास — कुछ मिनट प्रतीक्षा करें',
+    'auth.browser': 'इसके बजाय ब्राउज़र संग्रहण उपयोग करें', 'to.auth': 'सत्र समाप्त — पुनः अनलॉक करें',
+  },
+  tr: {
+    'auth.title': 'Kitaplığınızın kilidini açın', 'auth.sub': 'Bu sunucu bir parola ister.',
+    'auth.password': 'Parola', 'auth.unlock': 'Kilidi aç',
+    'auth.bad': 'Yanlış parola', 'auth.wait': 'Çok fazla deneme — birkaç dakika bekleyin',
+    'auth.browser': 'Bunun yerine tarayıcı depolamasını kullan', 'to.auth': 'Oturum doldu — yeniden kilidi açın',
+  },
+};
+for (const lang of Object.keys(I18N_AUTH)) Object.assign(I18N_LOCALES[lang], I18N_AUTH[lang]);
+
 const I18N_META = {
   en: { name: 'English', dir: 'ltr' },
   ar: { name: 'العربية', dir: 'rtl' },

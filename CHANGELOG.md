@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.3.0] - 2026-11-24
+
+Companion-server hardening (roadmap Phase 5). Archiving stays deferred by
+owner decision; it is documented as a future opt-in, not built.
+
+### Added
+- **Optional password auth** (`REELKEEP_PASSWORD`): constant-time comparison,
+  HMAC-signed `HttpOnly; SameSite=Strict` session cookie, per-IP login rate
+  limiting, login dialog in the app (boot + mid-session 401), "use browser
+  storage instead" escape. Non-loopback binds without a password **refuse to
+  start** unless `REELKEEP_ALLOW_INSECURE=1` (loud warning).
+- **Security headers**: tight CSP (`script-src 'self'`, no inline scripts —
+  player.html's script moved to `player.js`/`player.css`), `Referrer-Policy:
+  no-referrer`, minimal `Permissions-Policy`, `X-Frame-Options: SAMEORIGIN`.
+  Player telemetry postMessage now origin-pinned both ways.
+- **Docker**: pinned Node LTS alpine image, non-root user, `/data` volume,
+  healthcheck; `docker-compose.yml` requiring a password; `docs/deploy.md`
+  with Caddy/nginx reverse-proxy examples.
+- **Single-file binaries**: SEA asset build (`scripts/build-sea.mjs`,
+  `node:sea` materialization, data in `REELKEEP_DATA`/cwd) and a release
+  workflow building linux/macos/windows binaries + SHA-256 checksums,
+  extension zips, and a ghcr.io image from tags. Verified locally on Windows.
+- Auth/headers test suite (gate, cookie, tamper, rate limit, unsafe startup).
+
+### Changed
+- `docs/deploy.md` documents unsigned-binary OS prompts honestly (Gatekeeper,
+  SmartScreen) with checksums as the trust anchor.
+
 ## [2.2.0] - 2026-11-24
 
 One-click saving from the browser (roadmap Phase 4).

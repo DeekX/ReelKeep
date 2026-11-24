@@ -132,6 +132,7 @@ export function closePlayer() {
 }
 
 window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin) return; // playback telemetry: own origin only
   const d = e.data;
   if (!d || d.from !== 'vg-player') return;
   if (d.type === 'time') {

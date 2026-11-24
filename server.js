@@ -14,16 +14,43 @@ const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
 const { Readable } = require('stream');
-const { createStore } = require('./lib/store');
-const { safeFetch } = require('./lib/safefetch');
-const { httpError } = require('./lib/ssrf');
-const { extractSnapshot } = require('./lib/snapshot');
 
-const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, 'data');
-const THUMB_DIR = path.join(ROOT, 'thumbnails');
-const VIDEO_DIR = path.join(ROOT, 'videos');
-const FILE_DIR = path.join(ROOT, 'files');
+/* Single-executable builds carry the app as SEA assets; materialize them once
+   per version into a temp dir and keep user data next to the working directory.
+   SEA's embedded require only knows builtins, so lib modules load from the
+   materialized disk copy through createRequire. */
+let ROOT = __dirname;
+let DATA_ROOT = ROOT;
+let sea = null;
+try {
+  sea = require('node:sea');
+} catch {
+  /* not a SEA build */
+}
+let appRequire = require;
+if (sea && sea.isSea()) {
+  const os = require('os');
+  const version = JSON.parse(sea.getAsset('package.json', 'utf8')).version || '0';
+  ROOT = path.join(os.tmpdir(), `reelkeep-app-${version}`);
+  DATA_ROOT = process.env.REELKEEP_DATA ? path.resolve(process.env.REELKEEP_DATA) : process.cwd();
+  const manifest = sea.getAsset('sea-manifest.json', 'utf8');
+  for (const rel of JSON.parse(manifest)) {
+    const dest = path.join(ROOT, rel);
+    if (fs.existsSync(dest)) continue;
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, Buffer.from(sea.getAsset(rel)));
+  }
+  appRequire = require('node:module').createRequire(path.join(ROOT, 'package.json'));
+}
+const { createStore } = appRequire('./lib/store');
+const { safeFetch } = appRequire('./lib/safefetch');
+const { httpError } = appRequire('./lib/ssrf');
+const { extractSnapshot } = appRequire('./lib/snapshot');
+const { createAuth, isLoopback } = appRequire('./lib/auth');
+const DATA_DIR = path.join(DATA_ROOT, 'data');
+const THUMB_DIR = path.join(DATA_ROOT, 'thumbnails');
+const VIDEO_DIR = path.join(DATA_ROOT, 'videos');
+const FILE_DIR = path.join(DATA_ROOT, 'files');
 const JS_DIR = path.join(ROOT, 'js');
 const PORT = Number(process.env.PORT || 5178);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -65,7 +92,7 @@ const MIME = {
 // Only the UI and the media folders are reachable over HTTP. The library JSON,
 // the server source and repo internals (.git, package.json, …) must never be
 // served — HOST=0.0.0.0 puts this server on the LAN.
-const PUBLIC_FILES = new Set(['index.html', 'player.html', 'app.js', 'styles.css', 'i18n.js', 'manifest.webmanifest', 'sw.js']);
+const PUBLIC_FILES = new Set(['index.html', 'player.html', 'player.js', 'player.css', 'app.js', 'styles.css', 'i18n.js', 'manifest.webmanifest', 'sw.js']);
 const PUBLIC_DIRS = [THUMB_DIR, VIDEO_DIR, FILE_DIR, JS_DIR, path.join(ROOT, 'icons')];
 const UPLOAD_EXT = new Set(['.mp4', '.m4v', '.webm', '.ogv', '.ogg', '.mov', '.mkv', '.mp3', '.m4a', '.wav']);
 
@@ -73,6 +100,21 @@ const UPLOAD_EXT = new Set(['.mp4', '.m4v', '.webm', '.ogv', '.ogg', '.mov', '.m
 
 let store; // universal persistence, initialized before listen
 let schema; // shared schema helpers (ESM, loaded by the store)
+let auth; // optional password auth, initialized before listen
+
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "frame-src 'self' https:",
+  "connect-src 'self'",
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
 
 /* ------------------------------------------------------------ utils */
 
@@ -417,6 +459,7 @@ function serveStatic(req, res, absPath, relFromRoot, inline = false) {
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': absPath.startsWith(VIDEO_DIR) || absPath.startsWith(FILE_DIR) ? 'no-store' : 'no-cache',
       };
+      if (type.startsWith('text/html')) headers['Content-Security-Policy'] = CSP;
       // generic files download rather than render in the app origin; inline is
       // only honored for viewer-safe kinds (pdf/image/media), never web content
       const inlineSafe = /^(image\/|video\/|audio\/|application\/pdf)/.test(type);
@@ -453,7 +496,31 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const p = url.pathname;
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     if (p.startsWith('/api/') || p === '/media') {
+      // password auth (when configured): everything except the session handshake
+      if (auth.required && !['/api/login', '/api/session', '/api/logout'].includes(p) && !auth.checkCookie(req.headers.cookie)) {
+        return send(res, 401, { error: 'auth required' });
+      }
+      if (p === '/api/session' && req.method === 'GET') {
+        return send(res, 200, { required: auth.required, authenticated: auth.checkCookie(req.headers.cookie) });
+      }
+      if (p === '/api/login' && req.method === 'POST') {
+        const ip = req.socket.remoteAddress || '?';
+        if (auth.rateLimited(ip)) return send(res, 429, { error: 'too many attempts' });
+        const body = await readJson(req);
+        if (!auth.checkPassword(body.password)) {
+          auth.noteFailure(ip);
+          return send(res, 401, { error: 'wrong password' });
+        }
+        auth.clearFailures(ip);
+        return send(res, 200, { ok: true }, { 'Set-Cookie': auth.cookieHeader(auth.makeCookie()) });
+      }
+      if (p === '/api/logout' && req.method === 'POST') {
+        return send(res, 200, { ok: true }, { 'Set-Cookie': auth.cookieHeader('', 0) });
+      }
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-File-Name');
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
@@ -817,13 +884,29 @@ process.on('uncaughtException', (err) => {
 
 let appVersion = '0.0.0';
 try {
-  appVersion = require('./package.json').version;
+  appVersion = sea && sea.isSea() ? JSON.parse(sea.getAsset('package.json', 'utf8')).version : require('./package.json').version;
 } catch {
   /* minimal deployments and single-file binaries may not ship package.json */
 }
 
+// Refuse unsafe startup: a non-loopback bind without a password is an open
+// library on the network. The escape hatch must be explicit and is loud.
+if (!isLoopback(HOST) && !process.env.REELKEEP_PASSWORD) {
+  if (process.env.REELKEEP_ALLOW_INSECURE === '1') {
+    console.error('\n  WARNING: HOST is not loopback and no REELKEEP_PASSWORD is set.');
+    console.error('  WARNING: anyone who can reach this port can read and edit your library.');
+    console.error('  WARNING: continuing only because REELKEEP_ALLOW_INSECURE=1.\n');
+  } else {
+    console.error(`\n  Refusing to start: HOST=${HOST} is not loopback and REELKEEP_PASSWORD is unset.`);
+    console.error('  Set a password:  set REELKEEP_PASSWORD=... && node server.js');
+    console.error('  Or accept the risk explicitly:  set REELKEEP_ALLOW_INSECURE=1\n');
+    process.exit(1);
+  }
+}
+
 (async () => {
-  store = await createStore({ root: ROOT, appVersion });
+  auth = createAuth({ password: process.env.REELKEEP_PASSWORD, dataDir: DATA_DIR });
+  store = await createStore({ root: ROOT, dataRoot: DATA_ROOT, appVersion });
   schema = store.schema;
   await store.load(); // migrate legacy libraries at startup, before serving
   server.listen(PORT, HOST, () => {

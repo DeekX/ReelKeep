@@ -33,9 +33,22 @@ Every server-side fetch of a user-supplied URL (`/api/enrich`, `/media`,
 
 Any website can reach a loopback server, so state-changing API requests are
 refused when their `Origin` does not match the request `Host`. Non-browser
-clients (curl, tests) send no `Origin` and remain allowed. There is no
-authentication yet: LAN mode is sharing, not multi-tenant hosting (password
-auth arrives with the companion-server hardening phase).
+clients (curl, tests) send no `Origin` and remain allowed.
+
+## Authentication
+
+Set `REELKEEP_PASSWORD` to require a password: constant-time comparison,
+HMAC-signed `HttpOnly; SameSite=Strict` session cookie (30 days), per-IP login
+rate limiting (8 failures / 15 min). A non-loopback `HOST` without a password
+refuses startup unless `REELKEEP_ALLOW_INSECURE=1` is set explicitly (loud
+warning). Without a password on loopback, the server remains a personal,
+single-user tool.
+
+## Headers
+
+HTML responses carry a tight CSP (`script-src 'self'`; no inline scripts),
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, a minimal
+`Permissions-Policy`, and `X-Frame-Options: SAMEORIGIN`.
 
 ## Content handling
 

@@ -461,6 +461,25 @@
       <span id="tip">Tip: double-click a title to rename it, press <kbd>/</kbd> to search</span>
     </footer>
 
+    <!-- ---------------------------------------------------- login -->
+    <dialog id="loginDialog" class="modal tiny">
+      <form method="dialog" class="modal-form" id="loginForm">
+        <header class="modal-head">
+          <div class="modal-head-row"><h2 data-i18n="auth.title">Unlock your library</h2></div>
+          <p class="modal-sub" data-i18n="auth.sub">This server requires a password.</p>
+        </header>
+        <div class="modal-body">
+          <label class="field"><span data-i18n="auth.password">Password</span><input id="loginPassword" type="password" autocomplete="current-password" /></label>
+          <p class="help" id="loginError" hidden></p>
+        </div>
+        <footer class="modal-foot">
+          <button type="button" class="btn" id="loginBrowser" data-i18n="auth.browser">Use browser storage instead</button>
+          <div class="spacer"></div>
+          <button type="submit" class="btn primary" data-i18n="auth.unlock">Unlock</button>
+        </footer>
+      </form>
+    </dialog>
+
     <!-- ---------------------------------------------------- storage mode -->
     <dialog id="modeDialog" class="modal tiny">
       <div class="modal-form">

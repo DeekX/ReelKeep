@@ -15,6 +15,10 @@ async function jsonOrThrow(res) {
       err.code = 'conflict';
       err.rev = body.rev;
     }
+    if (res.status === 401) {
+      err.code = 'auth';
+      document.dispatchEvent(new CustomEvent('reelkeep:auth'));
+    }
     throw err;
   }
   return res.json();
