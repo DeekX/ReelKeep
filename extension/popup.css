@@ -1,0 +1,38 @@
+/* ReelKeep popup — the screening-room identity, compact. */
+:root {
+  --bg: #101113; --panel: #18191d; --line: #2c2e35; --text: #f1f1f3;
+  --muted: #a1a3ad; --accent: #58a6ff; --ok: #73bd95; --danger: #ff7b72;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  width: 320px; margin: 0; padding: 14px; background: var(--bg); color: var(--text);
+  font: 12.5px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; gap: 9px;
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+header b { font: 600 13px var(--mono); letter-spacing: 0.02em; }
+#queue { font: 10.5px var(--mono); color: var(--ok); cursor: pointer; text-decoration: underline dotted; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > span { font: 10.5px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+input, select, textarea {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); padding: 7px 9px; font: inherit; width: 100%;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.switch { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.switch input { width: auto; }
+details summary { cursor: pointer; color: var(--muted); font: 10.5px var(--mono); }
+details input { margin-top: 6px; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+#status { font: 10.5px var(--mono); color: var(--muted); }
+#status.err { color: var(--danger); }
+#status.ok { color: var(--ok); }
+button {
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  border-radius: 6px; padding: 7px 14px; font: 600 12px var(--mono); cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #101113; }
+button:hover { border-color: var(--accent); }

@@ -106,6 +106,21 @@ In browser-only mode small stored files are inlined into the export so it
 round-trips alone; larger bundles belong to server mode, where `files/` and
 `thumbnails/` sit next to `library.json` on disk.
 
+## Save from your browser
+
+The MV3 extension (`extension/`, manual install for now) adds one-click saving:
+a toolbar popup with type/folder/tags/notes and an optional *include current
+playback time* checkbox, plus right-click entries for pages, links, images and
+text selections. Metadata is read in the page context; saves hand off to your
+library tab (origin-pinned `postMessage`) or open it with a one-time hash
+payload. Unreachable library? Saves queue on your device and flush later.
+Minimal permissions, strict CSP, no telemetry — see
+[extension/PRIVACY.md](extension/PRIVACY.md) and [docs/extension.md](docs/extension.md).
+
+```sh
+npm run build:ext   # dist/extension-chrome + dist/extension-firefox (load unpacked)
+```
+
 ## Covers and frame-accurate thumbnails
 
 Every card shows a default cover first: the page's own image (`og:image`, copied into

@@ -2678,6 +2678,99 @@ const I18N_OFFLINE = {
 };
 for (const lang of Object.keys(I18N_OFFLINE)) Object.assign(I18N_LOCALES[lang], I18N_OFFLINE[lang]);
 
+/* Extension popup + handoff strings (Phase 4). */
+const I18N_EXT = {
+  en: {
+    'ext.title': 'Save to ReelKeep', 'ext.auto': 'Auto-detect', 'ext.folder': 'Folder',
+    'ext.pickfolder': 'Folder name (optional)', 'ext.time': 'Include current playback time',
+    'ext.target': 'Library URL', 'ext.save': 'Save',
+    'ext.queued': '{n} saves waiting — retry', 'ext.flushed': 'Retried {n} saves',
+    'ext.saved': 'Saved to your library', 'ext.failed': 'Library unreachable — saved to queue',
+    'to.extsaved': 'Saved from the extension: {title}',
+  },
+  ar: {
+    'ext.title': 'احفظ في ReelKeep', 'ext.auto': 'كشف تلقائي', 'ext.folder': 'مجلد',
+    'ext.pickfolder': 'اسم المجلد (اختياري)', 'ext.time': 'تضمين وقت التشغيل الحالي',
+    'ext.target': 'رابط المكتبة', 'ext.save': 'حفظ',
+    'ext.queued': '{n} عمليات حفظ بانتظار إعادة المحاولة', 'ext.flushed': 'أعيدت محاولة {n} عمليات حفظ',
+    'ext.saved': 'حُفظ في مكتبتك', 'ext.failed': 'تعذّر الوصول إلى المكتبة — حُفظ في الطابور',
+    'to.extsaved': 'حُفظ من الإضافة: {title}',
+  },
+  ru: {
+    'ext.title': 'Сохранить в ReelKeep', 'ext.auto': 'Автоопределение', 'ext.folder': 'Папка',
+    'ext.pickfolder': 'Имя папки (необязательно)', 'ext.time': 'Включить текущее время воспроизведения',
+    'ext.target': 'URL библиотеки', 'ext.save': 'Сохранить',
+    'ext.queued': '{n} сохранений ждут повтора', 'ext.flushed': 'Повторено: {n}',
+    'ext.saved': 'Сохранено в библиотеку', 'ext.failed': 'Библиотека недоступна — сохранено в очередь',
+    'to.extsaved': 'Сохранено из расширения: {title}',
+  },
+  fr: {
+    'ext.title': 'Enregistrer dans ReelKeep', 'ext.auto': 'Détection auto', 'ext.folder': 'Dossier',
+    'ext.pickfolder': 'Nom du dossier (facultatif)', 'ext.time': 'Inclure l’heure de lecture actuelle',
+    'ext.target': 'URL de la bibliothèque', 'ext.save': 'Enregistrer',
+    'ext.queued': '{n} enregistrements en attente — réessayer', 'ext.flushed': '{n} enregistrements retentés',
+    'ext.saved': 'Enregistré dans votre bibliothèque', 'ext.failed': 'Bibliothèque injoignable — mis en file',
+    'to.extsaved': 'Enregistré depuis l’extension : {title}',
+  },
+  de: {
+    'ext.title': 'In ReelKeep speichern', 'ext.auto': 'Automatisch erkennen', 'ext.folder': 'Ordner',
+    'ext.pickfolder': 'Ordnername (optional)', 'ext.time': 'Aktuelle Wiedergabezeit übernehmen',
+    'ext.target': 'Bibliotheks-URL', 'ext.save': 'Speichern',
+    'ext.queued': '{n} Speicherungen warten — erneut versuchen', 'ext.flushed': '{n} Speicherungen wiederholt',
+    'ext.saved': 'In Ihrer Bibliothek gespeichert', 'ext.failed': 'Bibliothek nicht erreichbar — in Warteschlange',
+    'to.extsaved': 'Aus der Erweiterung gespeichert: {title}',
+  },
+  es: {
+    'ext.title': 'Guardar en ReelKeep', 'ext.auto': 'Detección automática', 'ext.folder': 'Carpeta',
+    'ext.pickfolder': 'Nombre de carpeta (opcional)', 'ext.time': 'Incluir el tiempo de reproducción actual',
+    'ext.target': 'URL de la biblioteca', 'ext.save': 'Guardar',
+    'ext.queued': '{n} guardados en espera: reintentar', 'ext.flushed': '{n} guardados reintentados',
+    'ext.saved': 'Guardado en tu biblioteca', 'ext.failed': 'Biblioteca inaccesible: guardado en cola',
+    'to.extsaved': 'Guardado desde la extensión: {title}',
+  },
+  zh: {
+    'ext.title': '保存到 ReelKeep', 'ext.auto': '自动识别', 'ext.folder': '文件夹',
+    'ext.pickfolder': '文件夹名称（可选）', 'ext.time': '包含当前播放时间',
+    'ext.target': '库 URL', 'ext.save': '保存',
+    'ext.queued': '{n} 个保存等待重试', 'ext.flushed': '已重试 {n} 个保存',
+    'ext.saved': '已保存到你的库', 'ext.failed': '无法连接库——已存入队列',
+    'to.extsaved': '已从扩展保存：{title}',
+  },
+  ja: {
+    'ext.title': 'ReelKeep に保存', 'ext.auto': '自動判定', 'ext.folder': 'フォルダー',
+    'ext.pickfolder': 'フォルダー名（任意）', 'ext.time': '現在の再生時刻を含める',
+    'ext.target': 'ライブラリ URL', 'ext.save': '保存',
+    'ext.queued': '{n} 件の保存が再試行待ち', 'ext.flushed': '{n} 件を再試行しました',
+    'ext.saved': 'ライブラリに保存しました', 'ext.failed': 'ライブラリに到達できません——キューに保存',
+    'to.extsaved': '拡張機能から保存: {title}',
+  },
+  ko: {
+    'ext.title': 'ReelKeep에 저장', 'ext.auto': '자동 감지', 'ext.folder': '폴더',
+    'ext.pickfolder': '폴더 이름(선택)', 'ext.time': '현재 재생 시간 포함',
+    'ext.target': '라이브러리 URL', 'ext.save': '저장',
+    'ext.queued': '{n}개 저장 대기 중 — 다시 시도', 'ext.flushed': '{n}개 저장 다시 시도함',
+    'ext.saved': '라이브러리에 저장됨', 'ext.failed': '라이브러리에 연결할 수 없음 — 대기열에 저장',
+    'to.extsaved': '확장에서 저장됨: {title}',
+  },
+  hi: {
+    'ext.title': 'ReelKeep में सहेजें', 'ext.auto': 'स्वतः पहचान', 'ext.folder': 'फ़ोल्डर',
+    'ext.pickfolder': 'फ़ोल्डर नाम (वैकल्पिक)', 'ext.time': 'वर्तमान प्लेबैक समय शामिल करें',
+    'ext.target': 'लाइब्रेरी URL', 'ext.save': 'सहेजें',
+    'ext.queued': '{n} सहेजना प्रतीक्षा में — पुनः प्रयास', 'ext.flushed': '{n} सहेजना पुनः प्रयासित',
+    'ext.saved': 'आपकी लाइब्रेरी में सहेजा गया', 'ext.failed': 'लाइब्रेरी अनुपलब्ध — कतार में सहेजा',
+    'to.extsaved': 'एक्सटेंशन से सहेजा: {title}',
+  },
+  tr: {
+    'ext.title': 'ReelKeep’e kaydet', 'ext.auto': 'Otomatik algıla', 'ext.folder': 'Klasör',
+    'ext.pickfolder': 'Klasör adı (isteğe bağlı)', 'ext.time': 'Geçerli oynatma zamanını ekle',
+    'ext.target': 'Kitaplık URL’si', 'ext.save': 'Kaydet',
+    'ext.queued': '{n} kayıt yeniden deneme bekliyor', 'ext.flushed': '{n} kayıt yeniden denendi',
+    'ext.saved': 'Kitaplığınıza kaydedildi', 'ext.failed': 'Kitaplığa ulaşılamıyor — kuyruğa kaydedildi',
+    'to.extsaved': 'Eklentiden kaydedildi: {title}',
+  },
+};
+for (const lang of Object.keys(I18N_EXT)) Object.assign(I18N_LOCALES[lang], I18N_EXT[lang]);
+
 const I18N_META = {
   en: { name: 'English', dir: 'ltr' },
   ar: { name: 'العربية', dir: 'rtl' },

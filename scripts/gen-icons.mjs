@@ -92,7 +92,8 @@ function draw(size, { maskable = false } = {}) {
   return encodePng(size, size, buf);
 }
 
-fs.writeFileSync(path.join(OUT, 'icon-192.png'), draw(192));
-fs.writeFileSync(path.join(OUT, 'icon-512.png'), draw(512));
+for (const size of [16, 32, 48, 128, 192, 512]) {
+  fs.writeFileSync(path.join(OUT, `icon-${size}.png`), draw(size));
+}
 fs.writeFileSync(path.join(OUT, 'maskable-512.png'), draw(512, { maskable: true }));
-console.log('icons written: icon-192.png, icon-512.png, maskable-512.png');
+console.log('icons written: 16, 32, 48, 128, 192, 512 + maskable-512');

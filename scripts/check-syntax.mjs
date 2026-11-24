@@ -24,6 +24,7 @@ const files = [
   ...walk(path.join(ROOT, 'lib')),
   ...walk(path.join(ROOT, 'test')),
   ...walk(path.join(ROOT, 'scripts')),
+  ...walk(path.join(ROOT, 'extension')),
 ];
 
 let failed = 0;

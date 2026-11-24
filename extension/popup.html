@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <b data-i18n="ext.title">Save to ReelKeep</b>
+      <span id="queue" hidden></span>
+    </header>
+    <label class="field"><span data-i18n="f.title">Title</span><input id="title" type="text" /></label>
+    <label class="field"><span data-i18n="add.type">Type</span>
+      <select id="type">
+        <option value="auto" data-i18n="ext.auto">Auto-detect</option>
+        <option value="video" data-i18n="type.video">Video</option>
+        <option value="article" data-i18n="type.article">Article</option>
+        <option value="link" data-i18n="type.link">Link</option>
+        <option value="image" data-i18n="type.image">Image</option>
+        <option value="audio" data-i18n="type.audio">Audio</option>
+        <option value="pdf" data-i18n="type.pdf">PDF</option>
+        <option value="note" data-i18n="type.note">Note</option>
+        <option value="file" data-i18n="type.file">File</option>
+      </select>
+    </label>
+    <label class="field"><span data-i18n="ext.folder">Folder</span>
+      <select id="folder"></select>
+      <input id="folderName" type="text" hidden placeholder="Folder name (optional)" data-i18n-placeholder="ext.pickfolder" />
+    </label>
+    <label class="field"><span data-i18n="f.tags">Tags</span><input id="tags" type="text" placeholder="tutorials, watch-later" data-i18n-placeholder="ph.tags" /></label>
+    <label class="field"><span data-i18n="f.notes">Notes</span><textarea id="notes" rows="2"></textarea></label>
+    <label class="switch"><input id="withTime" type="checkbox" /> <span data-i18n="ext.time">Include current playback time</span></label>
+    <details>
+      <summary data-i18n="ext.target">Library URL</summary>
+      <input id="libUrl" type="url" spellcheck="false" />
+    </details>
+    <footer>
+      <span id="status"></span>
+      <button id="save" class="primary" data-i18n="ext.save">Save</button>
+    </footer>
+    <script src="i18n.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [2.2.0] - 2026-11-24
+
+One-click saving from the browser (roadmap Phase 4).
+
+### Added
+- **MV3 extension** (`extension/`, builds in `dist/` via `npm run build:ext`):
+  toolbar popup (type/folder/tags/notes + optional current playback time),
+  context menus for page/link/image/selection, page-context metadata extraction.
+- Origin-pinned handoff: `postMessage` into an open library tab, or a consumed
+  `#reelkeep-save=` hash payload when opening it; undelivered saves queue in
+  `chrome.storage.local` and flush later.
+- Minimal permissions (`activeTab`, `scripting`, `contextMenus`, `storage`) with
+  optional per-origin host permissions requested at use time; strict CSP; no
+  remote code, no eval, no innerHTML (test-enforced).
+- `extension/PRIVACY.md`, `extension/store/` listing copy + permission
+  justifications, `docs/extension.md`; Firefox manifest variant from same source.
+- Popup strings in all 11 languages (`ext.*`); handoff toast translated.
+- Tests: extension hygiene suite + headless smoke (Edge) covering install,
+  popup, worker messaging and both handoff channels.
+
 ## [2.1.0] - 2026-11-24
 
 Browser-only mode becomes a first-class citizen, and the app installs.

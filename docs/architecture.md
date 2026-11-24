@@ -5,7 +5,7 @@ and grow, or never leave it.
 
 ```
 Tier 1  Web app (installable PWA)                        zero install; folder mode or browser storage
-Tier 2  Browser extension (Phase 4)                    one-click save, cross-origin metadata
+Tier 2  Browser extension (MV3, extension/)            one-click save, cross-origin metadata
 Tier 3  Companion server (node server.js)              files on disk, media proxy, enrichment
 ```
 

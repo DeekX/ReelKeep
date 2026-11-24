@@ -25,6 +25,7 @@ import { render, startRename, toggleSelect, setSelecting } from './js/views.mjs'
 import { openPlayer, paintLbMeta, paintLbDetails, closePlayer } from './js/lightbox.mjs';
 import { openAdd, openEdit, openMove, editingItem, paintMoveList, addDialog, editDialog, moveDialog } from './js/dialogs.mjs';
 import { autoThumbnail, startDurationBackfill } from './js/auto.mjs';
+import { initHandoff } from './js/handoff.mjs';
 import { confirmBox } from './js/ui.mjs';
 import { thumbDialog, isPickerReady, openThumbPicker } from './js/thumbpicker.mjs';
 import './js/folders.mjs';
@@ -371,6 +372,7 @@ async function boot() {
   }
   await warmFileUrls();
   render();
+  initHandoff();
   // give playable videos without a cover their default frame (the opening shot)
   const missing = state.items
     .filter((v) => v.type === 'video' && v.data?.kind === 'file' && (!v.cover || v.cover.kind === 'none'))
